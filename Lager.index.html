@@ -308,6 +308,10 @@
       ⬆ Import JSON
       <input type="file" accept=".json" style="display:none" onchange="importData(event)">
     </label>
+    <label class="btn btn-ghost btn-sm" style="cursor:pointer">
+      📊 Excel importieren
+      <input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="openExcelImport(event)">
+    </label>
     <button class="btn btn-primary btn-sm" onclick="openAddModal()">+ Produkt hinzufügen</button>
   </div>
 </header>
@@ -503,6 +507,23 @@
 
 <div id="toast"></div>
 
+<!-- ── EXCEL IMPORT MODAL ──────────────────────── -->
+<div class="modal-backdrop" id="modalExcel">
+  <div class="modal" style="max-width:620px">
+    <div class="modal-head">
+      <h3>📊 Excel importieren</h3>
+      <button class="modal-close" onclick="closeModal('modalExcel')">×</button>
+    </div>
+    <div class="modal-body" id="excelBody">
+      <!-- filled dynamically -->
+    </div>
+    <div class="modal-footer" id="excelFooter">
+      <button class="btn btn-outline" onclick="closeModal('modalExcel')">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════
 //  DATA LAYER
@@ -872,6 +893,173 @@ function importData(event) {
     event.target.value = '';
   };
   reader.readAsText(file);
+}
+
+// ═══════════════════════════════════════════════════════
+//  EXCEL IMPORT
+// ═══════════════════════════════════════════════════════
+let excelRows    = [];
+let excelHeaders = [];
+
+function openExcelImport(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = '';
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb   = XLSX.read(e.target.result, { type: 'array' });
+      const ws   = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+      if (data.length < 2) { toast('Excel-Datei ist leer oder hat nur eine Zeile.', 'error'); return; }
+
+      excelHeaders = data[0].map(String);
+      excelRows    = data.slice(1).filter(r => r.some(c => c !== ''));
+
+      renderExcelMapper();
+      openModal('modalExcel');
+    } catch(err) {
+      toast('Datei konnte nicht gelesen werden.', 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function renderExcelMapper() {
+  const body   = document.getElementById('excelBody');
+  const footer = document.getElementById('excelFooter');
+
+  const opts = `<option value="">– nicht verwenden –</option>` +
+    excelHeaders.map((h,i) => `<option value="${i}">${h}</option>`).join('');
+
+  // Try to auto-detect common column names
+  function guess(keywords) {
+    const idx = excelHeaders.findIndex(h =>
+      keywords.some(k => h.toLowerCase().includes(k)));
+    return idx >= 0 ? idx : '';
+  }
+
+  const gName    = guess(['name','bezeichnung','produkt','artikel']);
+  const gCat     = guess(['kategorie','category','gruppe','typ']);
+  const gUnit    = guess(['einheit','unit','menge']);
+  const gStockG  = guess(['geschäft','geschaeft','shop','laden','filiale']);
+  const gStockK  = guess(['keller','lager','depot','storage']);
+  const gReorder = guess(['nachbestell','reorder','mindest','minimum','min']);
+  const gNote    = guess(['notiz','note','kommentar','info','bemerkung']);
+
+  function sel(id, preVal) {
+    return `<select id="map_${id}" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font:inherit;font-size:13px;background:var(--bg)">
+      ${excelHeaders.map((h,i) =>
+        `<option value="${i}" ${String(i)===String(preVal)?'selected':''}>${h}</option>`
+      ).join('')}
+      <option value="" ${preVal===''?'selected':''}>– nicht verwenden –</option>
+    </select>`;
+  }
+
+  body.innerHTML = `
+    <p style="font-size:13px;color:var(--mid);margin-bottom:4px">
+      <strong>${excelRows.length} Zeilen</strong> gefunden · ${excelHeaders.length} Spalten.<br>
+      Ordne zu, welche Spalte welcher Information entspricht:
+    </p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px">
+      <div class="field"><label>Produktname *</label>${sel('name', gName)}</div>
+      <div class="field"><label>Kategorie</label>${sel('cat', gCat)}</div>
+      <div class="field"><label>Einheit</label>${sel('unit', gUnit)}</div>
+      <div class="field"><label>Nachbestellpunkt</label>${sel('reorder', gReorder)}</div>
+      <div class="field"><label>Bestand Geschäft</label>${sel('stockG', gStockG)}</div>
+      <div class="field"><label>Bestand Keller</label>${sel('stockK', gStockK)}</div>
+    </div>
+    <div class="field" style="margin-top:4px"><label>Notiz / Kommentar</label>${sel('note', gNote)}</div>
+    <div class="field" style="margin-top:8px">
+      <label>Standort (wenn keine Bestandsspalte zugeordnet)</label>
+      <select id="map_zone" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font:inherit;font-size:13px;background:var(--bg)">
+        <option value="beide">Beide (Geschäft + Keller)</option>
+        <option value="geschaeft">Nur Geschäft</option>
+        <option value="keller">Nur Keller</option>
+      </select>
+    </div>
+    <div style="margin-top:12px;background:var(--bg);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--mid)">
+      <strong>Vorschau (erste 3 Zeilen):</strong><br>
+      ${excelRows.slice(0,3).map(r =>
+        `<span style="display:block;margin-top:3px">${excelHeaders.map((h,i)=>r[i]!==''?`${h}: <b>${r[i]}</b>`:'').filter(Boolean).join(' · ')}</span>`
+      ).join('')}
+    </div>
+  `;
+
+  footer.innerHTML = `
+    <button class="btn btn-outline" onclick="closeModal('modalExcel')">Abbrechen</button>
+    <button class="btn btn-primary" onclick="applyExcelImport()">📥 Importieren</button>
+  `;
+}
+
+function getMapVal(id) {
+  const el = document.getElementById('map_' + id);
+  return el ? el.value : '';
+}
+
+function applyExcelImport() {
+  const iName    = getMapVal('name');
+  const iCat     = getMapVal('cat');
+  const iUnit    = getMapVal('unit');
+  const iReorder = getMapVal('reorder');
+  const iStockG  = getMapVal('stockG');
+  const iStockK  = getMapVal('stockK');
+  const iNote    = getMapVal('note');
+  const fallbackZone = getMapVal('zone') || 'beide';
+
+  if (iName === '') { toast('Bitte mindestens "Produktname" zuordnen.', 'error'); return; }
+
+  let added = 0, skipped = 0;
+
+  excelRows.forEach(row => {
+    const name = String(row[iName] ?? '').trim();
+    if (!name) { skipped++; return; }
+
+    const cat     = iCat     !== '' ? String(row[iCat]     ?? '').trim() : '';
+    const unit    = iUnit    !== '' ? String(row[iUnit]    ?? '').trim() : '';
+    const reorder = iReorder !== '' ? parseInt(row[iReorder]) || 0 : 2;
+    const note    = iNote    !== '' ? String(row[iNote]    ?? '').trim() : '';
+
+    const hasG = iStockG !== '' && row[iStockG] !== '';
+    const hasK = iStockK !== '' && row[iStockK] !== '';
+    const stockG = hasG ? (parseInt(row[iStockG]) || 0) : 0;
+    const stockK = hasK ? (parseInt(row[iStockK]) || 0) : 0;
+
+    let zones = [];
+    let stockObj = {};
+
+    if (hasG && hasK) {
+      zones = ['geschaeft','keller'];
+      stockObj = { geschaeft: stockG, keller: stockK };
+    } else if (hasG) {
+      zones = ['geschaeft'];
+      stockObj = { geschaeft: stockG };
+    } else if (hasK) {
+      zones = ['keller'];
+      stockObj = { keller: stockK };
+    } else {
+      zones = fallbackZone === 'beide' ? ['geschaeft','keller'] : [fallbackZone];
+      zones.forEach(z => stockObj[z] = 0);
+    }
+
+    db.products.push({
+      id: genId(),
+      name, cat, unit, note,
+      category: cat,
+      zones,
+      stock: stockObj,
+      reorder_point: reorder,
+      created_at: new Date().toISOString()
+    });
+    added++;
+  });
+
+  saveData(db);
+  closeModal('modalExcel');
+  render();
+  toast(`${added} Produkte importiert${skipped ? `, ${skipped} übersprungen` : ''} ✓`, 'success');
 }
 
 // ═══════════════════════════════════════════════════════
