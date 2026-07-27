@@ -21,272 +21,180 @@
     --radius:    10px;
     --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
-
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font); background: var(--bg); color: var(--deep); min-height: 100vh; }
 
-  body {
-    font-family: var(--font);
-    background: var(--bg);
-    color: var(--deep);
-    min-height: 100vh;
-  }
-
-  /* ── HEADER ──────────────────────────────── */
+  /* HEADER */
   header {
-    background: var(--deep);
-    color: #fff;
-    padding: 0 28px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    height: 64px;
-    position: sticky;
-    top: 0;
-    z-index: 100;
+    background: var(--deep); color: #fff;
+    padding: 0 20px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    min-height: 64px; flex-wrap: wrap; padding-top: 8px; padding-bottom: 8px;
+    position: sticky; top: 0; z-index: 100;
     box-shadow: 0 2px 16px rgba(0,0,0,.25);
   }
-  .logo {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .logo-icon {
-    width: 34px; height: 34px;
-    background: var(--gold);
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 18px;
-    flex-shrink: 0;
-  }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-icon { width: 34px; height: 34px; background: var(--gold); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
   .logo-text { line-height: 1.15; }
   .logo-text strong { display: block; font-size: 15px; letter-spacing: .02em; }
-  .logo-text span   { font-size: 11px; color: var(--gold-lt); letter-spacing: .06em; text-transform: uppercase; }
-
+  .logo-text span { font-size: 11px; color: var(--gold-lt); letter-spacing: .06em; text-transform: uppercase; }
   .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
   .btn {
     display: inline-flex; align-items: center; gap: 6px;
     padding: 8px 16px; border-radius: 7px; border: none;
     font: inherit; font-size: 13px; font-weight: 500;
-    cursor: pointer; transition: all .18s;
-    white-space: nowrap;
+    cursor: pointer; transition: all .18s; white-space: nowrap;
   }
-  .btn-primary   { background: var(--gold); color: var(--deep); }
+  .btn-primary { background: var(--gold); color: var(--deep); }
   .btn-primary:hover { background: var(--gold-lt); }
-  .btn-ghost     { background: rgba(255,255,255,.1); color: #fff; border: 1px solid rgba(255,255,255,.2); }
+  .btn-ghost { background: rgba(255,255,255,.1); color: #fff; border: 1px solid rgba(255,255,255,.2); }
   .btn-ghost:hover { background: rgba(255,255,255,.18); }
-  .btn-outline   { background: transparent; color: var(--deep); border: 1.5px solid var(--border); }
+  .btn-outline { background: transparent; color: var(--deep); border: 1.5px solid var(--border); }
   .btn-outline:hover { border-color: var(--gold); color: var(--gold); }
-  .btn-danger    { background: var(--rose); color: #fff; }
+  .btn-danger { background: var(--rose); color: #fff; }
   .btn-danger:hover { background: #d9607a; }
-  .btn-sm        { padding: 5px 11px; font-size: 12px; }
-  .btn-xs        { padding: 3px 8px; font-size: 11px; border-radius: 5px; }
+  .btn-sm { padding: 5px 11px; font-size: 12px; }
+  .btn-xs { padding: 3px 8px; font-size: 11px; border-radius: 5px; }
 
-  /* ── MAIN LAYOUT ─────────────────────────── */
-  main { max-width: 1300px; margin: 0 auto; padding: 28px 20px 60px; }
-
-  .top-bar {
-    display: flex; align-items: center; justify-content: space-between;
-    flex-wrap: wrap; gap: 12px; margin-bottom: 24px;
-  }
+  /* MAIN */
+  main { max-width: 1300px; margin: 0 auto; padding: 24px 16px 60px; }
+  .top-bar { display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
   .top-bar h2 { font-size: 22px; font-weight: 700; }
-
-  .search-wrap {
-    position: relative; flex: 1; max-width: 320px;
-  }
-  .search-wrap input {
-    width: 100%; padding: 8px 36px 8px 12px;
+  .search-wrap { position: relative; flex: 1; max-width: 300px; }
+  .search-wrap input { width: 100%; padding: 8px 36px 8px 12px;
     border: 1.5px solid var(--border); border-radius: var(--radius);
-    font: inherit; font-size: 13px; background: var(--surface);
-    transition: border-color .18s;
-  }
+    font: inherit; font-size: 13px; background: var(--surface); }
   .search-wrap input:focus { outline: none; border-color: var(--gold); }
-  .search-wrap .icon {
-    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-    color: #aaa; pointer-events: none;
-  }
+  .search-wrap .icon { position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    color: #aaa; pointer-events: none; }
 
-  /* ── STATS BAR ───────────────────────────── */
-  .stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 14px; margin-bottom: 28px;
-  }
-  .stat-card {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 16px 18px;
-    box-shadow: var(--shadow);
-  }
+  /* STATS */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px; margin-bottom: 24px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); }
   .stat-card .val { font-size: 26px; font-weight: 700; line-height: 1; }
   .stat-card .lbl { font-size: 11px; color: var(--mid); margin-top: 4px;
     text-transform: uppercase; letter-spacing: .06em; }
-  .val-gold  { color: var(--gold); }
-  .val-rose  { color: var(--rose); }
-  .val-mint  { color: var(--mint); }
+  .val-gold { color: var(--gold); }
+  .val-rose { color: var(--rose); }
+  .val-mint { color: var(--mint); }
 
-  /* ── COLUMNS ─────────────────────────────── */
-  .columns {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
-  }
+  /* COLUMNS */
+  .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
   @media (max-width: 820px) { .columns { grid-template-columns: 1fr; } }
 
-  .zone-card {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 14px; box-shadow: var(--shadow);
-    overflow: hidden;
-  }
-  .zone-header {
-    padding: 16px 20px 14px;
+  .zone-card { background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; }
+  .zone-header { padding: 14px 18px 12px;
     display: flex; align-items: center; justify-content: space-between;
-    border-bottom: 1px solid var(--border);
-  }
-  .zone-title {
-    display: flex; align-items: center; gap: 10px;
-    font-size: 15px; font-weight: 700;
-  }
-  .zone-dot {
-    width: 10px; height: 10px; border-radius: 50%;
-  }
+    border-bottom: 1px solid var(--border); }
+  .zone-title { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 700; }
+  .zone-dot { width: 10px; height: 10px; border-radius: 50%; }
   .dot-geschaeft { background: var(--gold); }
-  .dot-keller    { background: #7C8CF8; }
+  .dot-keller { background: #7C8CF8; }
+  .zone-header-actions { display: flex; gap: 6px; }
 
-  /* ── PRODUCT TABLE ───────────────────────── */
-  .product-list { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
-
-  .product-row {
-    border: 1px solid var(--border); border-radius: 9px;
-    padding: 12px 14px;
-    transition: box-shadow .18s;
+  /* SUBCATEGORY */
+  .subcat-section { border-bottom: 1px solid var(--border); }
+  .subcat-header {
+    padding: 10px 18px;
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--bg); cursor: pointer;
+    user-select: none;
   }
+  .subcat-header:hover { background: #f0ece4; }
+  .subcat-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+  .subcat-arrow { font-size: 11px; color: var(--mid); transition: transform .2s; }
+  .subcat-arrow.open { transform: rotate(90deg); }
+  .subcat-count { font-size: 11px; color: var(--mid); background: var(--border);
+    padding: 2px 7px; border-radius: 20px; }
+  .subcat-body { display: none; padding: 8px 10px; }
+  .subcat-body.open { display: block; }
+  .subcat-actions { display: flex; gap: 5px; }
+
+  /* PRODUCT ROW */
+  .product-list { padding: 8px 10px; display: flex; flex-direction: column; gap: 7px; }
+  .product-row { border: 1px solid var(--border); border-radius: 9px; padding: 11px 13px; transition: box-shadow .18s; }
   .product-row:hover { box-shadow: var(--shadow); }
-  .product-row.low-stock {
-    border-color: var(--rose);
-    background: var(--rose-lt);
-  }
-
-  .pr-top {
-    display: flex; align-items: flex-start;
-    justify-content: space-between; gap: 8px;
-  }
+  .product-row.low-stock { border-color: var(--rose); background: var(--rose-lt); }
+  .pr-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
   .pr-name { font-size: 14px; font-weight: 600; }
-  .pr-cat  { font-size: 11px; color: var(--mid); margin-top: 2px; }
+  .pr-cat { font-size: 11px; color: var(--mid); margin-top: 2px; }
   .pr-actions { display: flex; gap: 5px; flex-shrink: 0; }
-
-  .pr-meta {
-    display: flex; flex-wrap: wrap; gap: 8px;
-    margin-top: 10px; align-items: center;
-  }
-  .stock-badge {
-    display: inline-flex; align-items: center; gap: 5px;
-    font-size: 13px; font-weight: 600;
-    padding: 3px 10px; border-radius: 20px;
-    background: #eafaf1; color: var(--mint);
-  }
+  .pr-meta { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; align-items: center; }
+  .stock-badge { display: inline-flex; align-items: center; gap: 5px;
+    font-size: 13px; font-weight: 600; padding: 3px 10px; border-radius: 20px;
+    background: #eafaf1; color: var(--mint); }
   .stock-badge.low { background: var(--rose-lt); color: var(--rose); }
-
-  .reorder-chip {
-    display: inline-flex; align-items: center; gap: 4px;
+  .reorder-chip { display: inline-flex; align-items: center; gap: 4px;
     font-size: 11px; font-weight: 600; padding: 2px 8px;
     border-radius: 20px; background: var(--rose); color: #fff;
-    animation: pulse 2s infinite;
-  }
+    animation: pulse 2s infinite; }
   @keyframes pulse {
     0%,100% { box-shadow: 0 0 0 0 rgba(232,118,138,.4); }
-    50%      { box-shadow: 0 0 0 5px rgba(232,118,138,0); }
+    50% { box-shadow: 0 0 0 5px rgba(232,118,138,0); }
   }
+  .chip { font-size: 11px; color: var(--mid); background: var(--bg);
+    border: 1px solid var(--border); padding: 2px 8px; border-radius: 20px; }
 
-  .chip {
-    font-size: 11px; color: var(--mid);
-    background: var(--bg); border: 1px solid var(--border);
-    padding: 2px 8px; border-radius: 20px;
-  }
+  .empty-state { padding: 30px 20px; text-align: center; color: var(--mid); font-size: 13px; }
+  .empty-state .icon-big { font-size: 32px; margin-bottom: 8px; }
 
-  .empty-state {
-    padding: 40px 20px; text-align: center;
-    color: var(--mid); font-size: 13px;
-  }
-  .empty-state .icon-big { font-size: 36px; margin-bottom: 10px; }
-
-  /* ── MODAL ───────────────────────────────── */
-  .modal-backdrop {
-    display: none; position: fixed; inset: 0;
+  /* MODAL */
+  .modal-backdrop { display: none; position: fixed; inset: 0;
     background: rgba(26,26,46,.45); backdrop-filter: blur(3px);
-    z-index: 500; align-items: center; justify-content: center; padding: 20px;
-  }
+    z-index: 500; align-items: center; justify-content: center; padding: 20px; }
   .modal-backdrop.open { display: flex; }
-
-  .modal {
-    background: var(--surface); border-radius: 16px;
-    box-shadow: var(--shadow-lg); width: 100%; max-width: 480px;
-    max-height: 90vh; overflow-y: auto;
-    animation: slideUp .22s ease;
-  }
-  @keyframes slideUp {
-    from { opacity: 0; transform: translateY(20px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-
-  .modal-head {
-    padding: 22px 24px 18px;
-    border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; justify-content: space-between;
-  }
+  .modal { background: var(--surface); border-radius: 16px; box-shadow: var(--shadow-lg);
+    width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto;
+    animation: slideUp .22s ease; }
+  @keyframes slideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+  .modal-head { padding: 20px 22px 16px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; }
   .modal-head h3 { font-size: 17px; font-weight: 700; }
-  .modal-close {
-    width: 30px; height: 30px; border: none; background: var(--bg);
+  .modal-close { width: 30px; height: 30px; border: none; background: var(--bg);
     border-radius: 50%; cursor: pointer; font-size: 18px; color: var(--mid);
-    display: flex; align-items: center; justify-content: center;
-    transition: background .15s;
-  }
+    display: flex; align-items: center; justify-content: center; }
   .modal-close:hover { background: var(--border); }
-
-  .modal-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
-  .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border);
+  .modal-body { padding: 18px 22px; display: flex; flex-direction: column; gap: 14px; }
+  .modal-footer { padding: 14px 22px; border-top: 1px solid var(--border);
     display: flex; justify-content: flex-end; gap: 10px; }
 
-  /* ── FORM ────────────────────────────────── */
+  /* FORM */
   .field { display: flex; flex-direction: column; gap: 5px; }
   .field label { font-size: 12px; font-weight: 600; color: var(--mid);
     text-transform: uppercase; letter-spacing: .05em; }
   .field input, .field select, .field textarea {
-    padding: 9px 12px; border: 1.5px solid var(--border);
-    border-radius: 8px; font: inherit; font-size: 14px;
-    background: var(--bg); color: var(--deep);
-    transition: border-color .18s;
-  }
-  .field input:focus, .field select:focus, .field textarea:focus {
-    outline: none; border-color: var(--gold);
-    background: #fff;
-  }
+    padding: 9px 12px; border: 1.5px solid var(--border); border-radius: 8px;
+    font: inherit; font-size: 14px; background: var(--bg); color: var(--deep); }
+  .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--gold); background:#fff; }
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
-  /* ── TRANSFER ARROW ──────────────────────── */
-  .transfer-arrow {
-    text-align: center; font-size: 22px; color: var(--gold); margin: -4px 0;
-  }
+  /* SUBCATEGORY MANAGE LIST */
+  .cat-manage-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }
+  .cat-manage-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
+  .cat-manage-item span { flex: 1; font-size: 14px; }
+  .cat-zone-chip { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 600; }
+  .chip-g { background: #FFF6E0; color: #a07a1a; }
+  .chip-k { background: #EEF0FF; color: #5060cc; }
 
-  /* ── TOAST ───────────────────────────────── */
-  #toast {
-    position: fixed; bottom: 24px; right: 24px;
-    background: var(--deep); color: #fff;
-    padding: 12px 20px; border-radius: 10px;
-    font-size: 13px; font-weight: 500;
-    box-shadow: var(--shadow-lg); z-index: 1000;
-    transform: translateY(20px); opacity: 0;
-    transition: all .25s;
-    max-width: 320px;
-  }
+  /* TRANSFER */
+  .transfer-arrow { text-align: center; font-size: 22px; color: var(--gold); margin: -4px 0; }
+
+  /* TOAST */
+  #toast { position: fixed; bottom: 24px; right: 24px;
+    background: var(--deep); color: #fff; padding: 12px 20px; border-radius: 10px;
+    font-size: 13px; font-weight: 500; box-shadow: var(--shadow-lg); z-index: 1000;
+    transform: translateY(20px); opacity: 0; transition: all .25s; max-width: 320px; }
   #toast.show { transform: translateY(0); opacity: 1; }
   #toast.success { border-left: 4px solid var(--mint); }
-  #toast.error   { border-left: 4px solid var(--rose); }
+  #toast.error { border-left: 4px solid var(--rose); }
 
-  /* ── SECTION DIVIDER ─────────────────────── */
-  .divider { height: 1px; background: var(--border); margin: 4px 0; }
-
-  /* ── SCROLLBAR ───────────────────────────── */
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
@@ -312,6 +220,7 @@
       📊 Excel importieren
       <input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="openExcelImport(event)">
     </label>
+    <button class="btn btn-ghost btn-sm" onclick="openCatManager()">🗂 Kategorien</button>
     <button class="btn btn-primary btn-sm" onclick="openAddModal()">+ Produkt hinzufügen</button>
   </div>
 </header>
@@ -324,34 +233,28 @@
       <span class="icon">🔍</span>
     </div>
   </div>
-
   <div class="stats" id="statsBar"></div>
-
   <div class="columns">
-    <div class="zone-card" id="zone-geschaeft">
+    <div class="zone-card">
       <div class="zone-header">
-        <div class="zone-title">
-          <span class="zone-dot dot-geschaeft"></span>
-          Geschäft
+        <div class="zone-title"><span class="zone-dot dot-geschaeft"></span>Geschäft</div>
+        <div class="zone-header-actions">
+          <button class="btn btn-outline btn-sm" onclick="openAddModal('geschaeft')">+ Produkt</button>
         </div>
-        <button class="btn btn-outline btn-sm" onclick="openAddModal('geschaeft')">+ Produkt</button>
       </div>
-      <div class="product-list" id="list-geschaeft"></div>
+      <div id="list-geschaeft"></div>
     </div>
-    <div class="zone-card" id="zone-keller">
+    <div class="zone-card">
       <div class="zone-header">
-        <div class="zone-title">
-          <span class="zone-dot dot-keller"></span>
-          Keller
+        <div class="zone-title"><span class="zone-dot dot-keller"></span>Keller</div>
+        <div class="zone-header-actions">
+          <button class="btn btn-outline btn-sm" onclick="openAddModal('keller')">+ Produkt</button>
         </div>
-        <button class="btn btn-outline btn-sm" onclick="openAddModal('keller')">+ Produkt</button>
       </div>
-      <div class="product-list" id="list-keller"></div>
+      <div id="list-keller"></div>
     </div>
   </div>
 </main>
-
-<!-- ── MODALS ──────────────────────────────────── -->
 
 <!-- ADD / EDIT PRODUCT -->
 <div class="modal-backdrop" id="modalAdd">
@@ -366,16 +269,6 @@
         <label>Produktname *</label>
         <input type="text" id="fName" placeholder="z. B. Shampoo Color Protect">
       </div>
-      <div class="field-row">
-        <div class="field">
-          <label>Kategorie</label>
-          <input type="text" id="fCat" placeholder="z. B. Haarpflege">
-        </div>
-        <div class="field">
-          <label>Einheit</label>
-          <input type="text" id="fUnit" placeholder="z. B. Flasche, Stk.">
-        </div>
-      </div>
       <div class="field">
         <label>Standort</label>
         <select id="fLocation">
@@ -383,6 +276,16 @@
           <option value="keller">Keller</option>
           <option value="beide">Beide Standorte</option>
         </select>
+      </div>
+      <div class="field">
+        <label>Unterkategorie</label>
+        <select id="fSubcat">
+          <option value="">– keine –</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Einheit</label>
+        <input type="text" id="fUnit" placeholder="z. B. Flasche, Liter, Stk.">
       </div>
       <div class="field-row">
         <div class="field">
@@ -406,7 +309,7 @@
   </div>
 </div>
 
-<!-- STOCK ACTION (Nachfüllen / Entnehmen) -->
+<!-- STOCK ACTION -->
 <div class="modal-backdrop" id="modalStock">
   <div class="modal">
     <div class="modal-head">
@@ -494,8 +397,7 @@
     </div>
     <div class="modal-body">
       <p style="font-size:14px;color:var(--mid)">
-        „<strong id="delProductName"></strong>" wird <strong>dauerhaft</strong> gelöscht
-        – inkl. aller Bestände. Dieser Schritt kann nicht rückgängig gemacht werden.
+        „<strong id="delProductName"></strong>" wird <strong>dauerhaft</strong> gelöscht. Dieser Schritt kann nicht rückgängig gemacht werden.
       </p>
     </div>
     <div class="modal-footer">
@@ -505,36 +407,102 @@
   </div>
 </div>
 
-<div id="toast"></div>
+<!-- KATEGORIE MANAGER -->
+<div class="modal-backdrop" id="modalCats">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-head">
+      <h3>🗂 Unterkategorien verwalten</h3>
+      <button class="modal-close" onclick="closeModal('modalCats')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-row">
+        <div class="field">
+          <label>Neue Kategorie</label>
+          <input type="text" id="newCatName" placeholder="z. B. Styling">
+        </div>
+        <div class="field">
+          <label>Für Standort</label>
+          <select id="newCatZone">
+            <option value="geschaeft">Geschäft</option>
+            <option value="keller">Keller</option>
+            <option value="beide">Beide</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-sm" style="margin-top:-4px" onclick="addCategory()">+ Hinzufügen</button>
+      <div style="margin-top:4px">
+        <div style="font-size:12px;font-weight:600;color:var(--mid);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Bestehende Kategorien</div>
+        <div class="cat-manage-list" id="catManageList"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="closeModal('modalCats')">Fertig</button>
+    </div>
+  </div>
+</div>
 
-<!-- ── EXCEL IMPORT MODAL ──────────────────────── -->
+<!-- KATEGORIE UMBENENNEN -->
+<div class="modal-backdrop" id="modalRenCat">
+  <div class="modal" style="max-width:360px">
+    <div class="modal-head">
+      <h3>Kategorie umbenennen</h3>
+      <button class="modal-close" onclick="closeModal('modalRenCat')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="renCatId">
+      <div class="field">
+        <label>Neuer Name</label>
+        <input type="text" id="renCatName">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalRenCat')">Abbrechen</button>
+      <button class="btn btn-primary" onclick="confirmRenameCategory()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- EXCEL IMPORT -->
 <div class="modal-backdrop" id="modalExcel">
   <div class="modal" style="max-width:620px">
     <div class="modal-head">
       <h3>📊 Excel importieren</h3>
       <button class="modal-close" onclick="closeModal('modalExcel')">×</button>
     </div>
-    <div class="modal-body" id="excelBody">
-      <!-- filled dynamically -->
-    </div>
+    <div class="modal-body" id="excelBody"></div>
     <div class="modal-footer" id="excelFooter">
       <button class="btn btn-outline" onclick="closeModal('modalExcel')">Abbrechen</button>
     </div>
   </div>
 </div>
 
+<div id="toast"></div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-// ═══════════════════════════════════════════════════════
-//  DATA LAYER
-// ═══════════════════════════════════════════════════════
-const STORAGE_KEY = 'lager_agreathaairday_v1';
+// ═══════════════════════════════════════
+//  DATA
+// ═══════════════════════════════════════
+const STORAGE_KEY = 'lager_agreathaairday_v2';
+
+const DEFAULT_CATS = [
+  { id:'c1', name:'Farben',             zones:['geschaeft'] },
+  { id:'c2', name:'Verkaufsprodukte',   zones:['geschaeft'] },
+  { id:'c3', name:'Shampoo',            zones:['geschaeft','keller'] },
+  { id:'c4', name:'Conditioner',        zones:['geschaeft','keller'] },
+  { id:'c5', name:'Masken',             zones:['geschaeft','keller'] },
+  { id:'c6', name:'Wasserstoffperoxid', zones:['geschaeft','keller'] },
+  { id:'c7', name:'Entwickler',         zones:['geschaeft','keller'] },
+  { id:'c8', name:'Fixierung',          zones:['geschaeft','keller'] },
+  { id:'c9', name:'Salonprodukte',      zones:['keller'] },
+];
 
 function loadData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : { products: [] };
-  } catch { return { products: [] }; }
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return { products: [], categories: DEFAULT_CATS };
 }
 
 function saveData(data) {
@@ -542,559 +510,551 @@ function saveData(data) {
 }
 
 let db = loadData();
+if (!db.categories) db.categories = DEFAULT_CATS;
 
 function genId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  return Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 }
 
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════
 //  RENDER
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════
 function render() {
-  const q = (document.getElementById('searchInput')?.value || '').toLowerCase().trim();
-
+  const q = (document.getElementById('searchInput')?.value||'').toLowerCase().trim();
   const filtered = q
-    ? db.products.filter(p =>
-        p.name.toLowerCase().includes(q) ||
-        (p.category || '').toLowerCase().includes(q))
+    ? db.products.filter(p => p.name.toLowerCase().includes(q) || (p.subcatId && getCatName(p.subcatId).toLowerCase().includes(q)))
     : db.products;
-
   renderZone('geschaeft', filtered);
   renderZone('keller', filtered);
   renderStats(filtered);
 }
 
+function getCatName(id) {
+  const c = db.categories.find(x=>x.id===id);
+  return c ? c.name : '';
+}
+
 function renderZone(zone, products) {
   const container = document.getElementById('list-' + zone);
-  const zoneProducts = products.filter(p => p.zones.includes(zone));
+  const zoneCats = db.categories.filter(c => c.zones.includes(zone));
+  const zoneProds = products.filter(p => p.zones.includes(zone));
 
-  if (!zoneProducts.length) {
-    container.innerHTML = `
-      <div class="empty-state">
-        <div class="icon-big">📦</div>
-        Noch keine Produkte für diesen Standort.
-      </div>`;
+  if (!zoneCats.length && !zoneProds.length) {
+    container.innerHTML = `<div class="empty-state"><div class="icon-big">📦</div>Noch keine Produkte.</div>`;
     return;
   }
 
-  // Sort: low-stock first, then alphabetically
-  zoneProducts.sort((a, b) => {
-    const aLow = a.stock[zone] <= a.reorder_point;
-    const bLow = b.stock[zone] <= b.reorder_point;
-    if (aLow !== bLow) return aLow ? -1 : 1;
-    return a.name.localeCompare(b.name);
+  let html = '';
+
+  // Products WITH a subcategory
+  zoneCats.forEach(cat => {
+    const catProds = zoneProds.filter(p => p.subcatId === cat.id);
+    const lowCount = catProds.filter(p => (p.stock[zone]||0) <= p.reorder_point).length;
+    const domId = `subcat_${zone}_${cat.id}`;
+    const isOpen = sessionStorage.getItem(domId) !== 'closed';
+
+    html += `
+    <div class="subcat-section">
+      <div class="subcat-header" onclick="toggleSubcat('${domId}')">
+        <div class="subcat-title">
+          <span class="subcat-arrow ${isOpen?'open':''}" id="arr_${domId}">▶</span>
+          ${esc(cat.name)}
+          ${lowCount ? `<span style="font-size:10px;background:var(--rose);color:#fff;padding:1px 6px;border-radius:10px">⚠ ${lowCount}</span>` : ''}
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="subcat-count">${catProds.length}</span>
+          <div class="subcat-actions" onclick="event.stopPropagation()">
+            <button class="btn btn-outline btn-xs" onclick="openAddModal('${zone}','${cat.id}')">+</button>
+          </div>
+        </div>
+      </div>
+      <div class="subcat-body ${isOpen?'open':''}" id="${domId}">
+        ${catProds.length
+          ? `<div class="product-list">${catProds.sort((a,b)=>{
+              const aL=(a.stock[zone]||0)<=a.reorder_point, bL=(b.stock[zone]||0)<=b.reorder_point;
+              return aL!==bL?(aL?-1:1):a.name.localeCompare(b.name);
+            }).map(p=>productRowHTML(p,zone)).join('')}</div>`
+          : `<div class="empty-state" style="padding:16px"><div class="icon-big" style="font-size:22px">📦</div>Noch keine Produkte in dieser Kategorie.</div>`
+        }
+      </div>
+    </div>`;
   });
 
-  container.innerHTML = zoneProducts.map(p => productRowHTML(p, zone)).join('');
+  // Products WITHOUT subcategory
+  const uncatProds = zoneProds.filter(p => !p.subcatId || !db.categories.find(c=>c.id===p.subcatId));
+  if (uncatProds.length) {
+    const domId = `subcat_${zone}_uncat`;
+    const isOpen = sessionStorage.getItem(domId) !== 'closed';
+    html += `
+    <div class="subcat-section">
+      <div class="subcat-header" onclick="toggleSubcat('${domId}')">
+        <div class="subcat-title">
+          <span class="subcat-arrow ${isOpen?'open':''}" id="arr_${domId}">▶</span>
+          Ohne Kategorie
+        </div>
+        <span class="subcat-count">${uncatProds.length}</span>
+      </div>
+      <div class="subcat-body ${isOpen?'open':''}" id="${domId}">
+        <div class="product-list">${uncatProds.map(p=>productRowHTML(p,zone)).join('')}</div>
+      </div>
+    </div>`;
+  }
+
+  if (!html) {
+    html = `<div class="empty-state"><div class="icon-big">📦</div>Noch keine Produkte für diesen Standort.</div>`;
+  }
+
+  container.innerHTML = html;
+}
+
+function toggleSubcat(domId) {
+  const body = document.getElementById(domId);
+  const arr  = document.getElementById('arr_' + domId);
+  if (!body) return;
+  const isOpen = body.classList.toggle('open');
+  arr.classList.toggle('open', isOpen);
+  sessionStorage.setItem(domId, isOpen ? 'open' : 'closed');
 }
 
 function productRowHTML(p, zone) {
   const qty = p.stock[zone] ?? 0;
   const isLow = qty <= p.reorder_point;
-
   const otherZone = zone === 'geschaeft' ? 'keller' : 'geschaeft';
   const otherLabel = zone === 'geschaeft' ? 'Keller' : 'Geschäft';
   const hasOther = p.zones.includes(otherZone);
+  const catName = p.subcatId ? getCatName(p.subcatId) : '';
 
   return `
-  <div class="product-row${isLow ? ' low-stock' : ''}">
+  <div class="product-row${isLow?' low-stock':''}">
     <div class="pr-top">
       <div>
         <div class="pr-name">${esc(p.name)}</div>
-        ${p.category ? `<div class="pr-cat">${esc(p.category)}${p.unit ? ' · ' + esc(p.unit) : ''}</div>` : ''}
+        ${p.unit ? `<div class="pr-cat">${esc(p.unit)}</div>` : ''}
       </div>
       <div class="pr-actions">
-        <button class="btn btn-outline btn-xs" title="Bearbeiten" onclick="openEditModal('${p.id}')">✏️</button>
-        <button class="btn btn-outline btn-xs" title="Löschen" onclick="openDeleteModal('${p.id}')">🗑</button>
+        <button class="btn btn-outline btn-xs" onclick="openEditModal('${p.id}')">✏️</button>
+        <button class="btn btn-outline btn-xs" onclick="openDeleteModal('${p.id}')">🗑</button>
       </div>
     </div>
     <div class="pr-meta">
-      <span class="stock-badge${isLow ? ' low' : ''}">
-        ${isLow ? '⚠' : '✓'} ${qty} ${p.unit || 'Stk.'}
+      <span class="stock-badge${isLow?' low':''}">
+        ${isLow?'⚠':'✓'} ${qty} ${p.unit||'Stk.'}
       </span>
-      ${isLow ? '<span class="reorder-chip">Zu bestellen</span>' : ''}
-      <span class="chip">Nachbestellpunkt: ${p.reorder_point}</span>
-      <button class="btn btn-outline btn-xs" onclick="openStockModal('${p.id}','${zone}')">
-        ± Bestand
-      </button>
-      ${hasOther ? `
-      <button class="btn btn-outline btn-xs" onclick="openTransferModal('${p.id}','${zone}')">
-        ⇄ → ${otherLabel}
-      </button>` : ''}
+      ${isLow?'<span class="reorder-chip">Zu bestellen</span>':''}
+      <span class="chip">Min: ${p.reorder_point}</span>
+      <button class="btn btn-outline btn-xs" onclick="openStockModal('${p.id}','${zone}')">± Bestand</button>
+      ${hasOther?`<button class="btn btn-outline btn-xs" onclick="openTransferModal('${p.id}','${zone}')">⇄ → ${otherLabel}</button>`:''}
     </div>
-    ${p.note ? `<div style="font-size:11px;color:var(--mid);margin-top:8px;padding-top:6px;border-top:1px solid var(--border)">📝 ${esc(p.note)}</div>` : ''}
+    ${p.note?`<div style="font-size:11px;color:var(--mid);margin-top:7px;padding-top:6px;border-top:1px solid var(--border)">📝 ${esc(p.note)}</div>`:''}
   </div>`;
 }
 
 function renderStats(products) {
-  const allStock = products.reduce((acc, p) => {
-    return acc + (p.stock.geschaeft || 0) + (p.stock.keller || 0);
-  }, 0);
-  const toOrder = products.filter(p =>
-    p.zones.some(z => (p.stock[z] ?? 0) <= p.reorder_point)
-  ).length;
-  const bar = document.getElementById('statsBar');
-  bar.innerHTML = `
-    <div class="stat-card">
-      <div class="val val-gold">${products.length}</div>
-      <div class="lbl">Produkte gesamt</div>
-    </div>
-    <div class="stat-card">
-      <div class="val val-mint">${products.filter(p=>p.zones.includes('geschaeft')).length}</div>
-      <div class="lbl">im Geschäft</div>
-    </div>
-    <div class="stat-card">
-      <div class="val" style="color:#7C8CF8">${products.filter(p=>p.zones.includes('keller')).length}</div>
-      <div class="lbl">im Keller</div>
-    </div>
-    <div class="stat-card">
-      <div class="val val-gold">${allStock}</div>
-      <div class="lbl">Bestand total</div>
-    </div>
-    <div class="stat-card">
-      <div class="val val-rose">${toOrder}</div>
-      <div class="lbl">Zu bestellen</div>
-    </div>
+  const allStock = products.reduce((a,p)=>a+(p.stock.geschaeft||0)+(p.stock.keller||0),0);
+  const toOrder = products.filter(p=>p.zones.some(z=>(p.stock[z]??0)<=p.reorder_point)).length;
+  document.getElementById('statsBar').innerHTML = `
+    <div class="stat-card"><div class="val val-gold">${products.length}</div><div class="lbl">Produkte gesamt</div></div>
+    <div class="stat-card"><div class="val val-mint">${products.filter(p=>p.zones.includes('geschaeft')).length}</div><div class="lbl">im Geschäft</div></div>
+    <div class="stat-card"><div class="val" style="color:#7C8CF8">${products.filter(p=>p.zones.includes('keller')).length}</div><div class="lbl">im Keller</div></div>
+    <div class="stat-card"><div class="val val-gold">${allStock}</div><div class="lbl">Bestand total</div></div>
+    <div class="stat-card"><div class="val val-rose">${toOrder}</div><div class="lbl">Zu bestellen</div></div>
   `;
 }
 
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════
 //  MODAL HELPERS
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
-
-// Close on backdrop click
 document.querySelectorAll('.modal-backdrop').forEach(b => {
-  b.addEventListener('click', e => { if (e.target === b) b.classList.remove('open'); });
+  b.addEventListener('click', e => { if(e.target===b) b.classList.remove('open'); });
 });
 
-// ═══════════════════════════════════════════════════════
-//  ADD / EDIT
-// ═══════════════════════════════════════════════════════
-function openAddModal(preZone) {
+// ═══════════════════════════════════════
+//  SUBCATEGORY SELECT HELPER
+// ═══════════════════════════════════════
+function populateSubcatSelect(zone, selectedId) {
+  const sel = document.getElementById('fSubcat');
+  const relevantZones = zone === 'beide' ? ['geschaeft','keller'] : [zone];
+  const cats = db.categories.filter(c => c.zones.some(z => relevantZones.includes(z)));
+  sel.innerHTML = `<option value="">– keine –</option>` +
+    cats.map(c=>`<option value="${c.id}" ${c.id===selectedId?'selected':''}>${esc(c.name)}</option>`).join('');
+}
+
+document.getElementById('fLocation').addEventListener('change', function() {
+  populateSubcatSelect(this.value, '');
+});
+
+// ═══════════════════════════════════════
+//  ADD / EDIT PRODUCT
+// ═══════════════════════════════════════
+function openAddModal(preZone, preCatId) {
   document.getElementById('modalAddTitle').textContent = 'Produkt hinzufügen';
   document.getElementById('editId').value = '';
   document.getElementById('fName').value = '';
-  document.getElementById('fCat').value = '';
   document.getElementById('fUnit').value = '';
   document.getElementById('fStock').value = '0';
   document.getElementById('fReorder').value = '2';
   document.getElementById('fNote').value = '';
-  document.getElementById('fLocation').value = preZone || 'geschaeft';
+  const zone = preZone || 'geschaeft';
+  document.getElementById('fLocation').value = zone;
+  populateSubcatSelect(zone, preCatId || '');
   openModal('modalAdd');
-  setTimeout(() => document.getElementById('fName').focus(), 100);
+  setTimeout(()=>document.getElementById('fName').focus(),100);
 }
 
 function openEditModal(id) {
-  const p = db.products.find(x => x.id === id);
+  const p = db.products.find(x=>x.id===id);
   if (!p) return;
   document.getElementById('modalAddTitle').textContent = 'Produkt bearbeiten';
   document.getElementById('editId').value = id;
   document.getElementById('fName').value = p.name;
-  document.getElementById('fCat').value = p.category || '';
-  document.getElementById('fUnit').value = p.unit || '';
-  document.getElementById('fNote').value = p.note || '';
+  document.getElementById('fUnit').value = p.unit||'';
+  document.getElementById('fNote').value = p.note||'';
   document.getElementById('fReorder').value = p.reorder_point;
-
-  const loc = p.zones.length > 1 ? 'beide' :
-              p.zones[0] === 'keller' ? 'keller' : 'geschaeft';
+  const loc = p.zones.length>1?'beide':p.zones[0]==='keller'?'keller':'geschaeft';
   document.getElementById('fLocation').value = loc;
-
-  // For edit, show average / first zone stock
-  const totalStock = (p.stock.geschaeft || 0) + (p.stock.keller || 0);
+  populateSubcatSelect(loc, p.subcatId||'');
+  const totalStock=(p.stock.geschaeft||0)+(p.stock.keller||0);
   document.getElementById('fStock').value = totalStock;
   openModal('modalAdd');
-  setTimeout(() => document.getElementById('fName').focus(), 100);
+  setTimeout(()=>document.getElementById('fName').focus(),100);
 }
 
 function saveProduct() {
   const name = document.getElementById('fName').value.trim();
-  if (!name) { toast('Bitte Produktname eingeben.', 'error'); return; }
-
+  if (!name) { toast('Bitte Produktname eingeben.','error'); return; }
   const loc = document.getElementById('fLocation').value;
-  const zones = loc === 'beide' ? ['geschaeft', 'keller'] :
-                loc === 'keller' ? ['keller'] : ['geschaeft'];
-  const stock = parseInt(document.getElementById('fStock').value) || 0;
-  const reorder = parseInt(document.getElementById('fReorder').value) || 0;
-
+  const zones = loc==='beide'?['geschaeft','keller']:loc==='keller'?['keller']:['geschaeft'];
+  const stock = parseInt(document.getElementById('fStock').value)||0;
+  const reorder = parseInt(document.getElementById('fReorder').value)||0;
+  const subcatId = document.getElementById('fSubcat').value || null;
   const editId = document.getElementById('editId').value;
 
   if (editId) {
-    const p = db.products.find(x => x.id === editId);
+    const p = db.products.find(x=>x.id===editId);
     if (!p) return;
-    p.name = name;
-    p.category = document.getElementById('fCat').value.trim();
-    p.unit = document.getElementById('fUnit').value.trim();
-    p.note = document.getElementById('fNote').value.trim();
-    p.reorder_point = reorder;
-    p.zones = zones;
-    // Don't overwrite existing stock on edit unless explicitly changed
-    zones.forEach(z => { if (p.stock[z] === undefined) p.stock[z] = stock; });
-    toast('Produkt aktualisiert ✓', 'success');
+    p.name=name; p.unit=document.getElementById('fUnit').value.trim();
+    p.note=document.getElementById('fNote').value.trim();
+    p.reorder_point=reorder; p.zones=zones; p.subcatId=subcatId;
+    zones.forEach(z=>{ if(p.stock[z]===undefined) p.stock[z]=stock; });
+    toast('Produkt aktualisiert ✓','success');
   } else {
-    const stockObj = {};
-    zones.forEach(z => stockObj[z] = stock);
-    db.products.push({
-      id: genId(),
-      name,
-      category: document.getElementById('fCat').value.trim(),
-      unit: document.getElementById('fUnit').value.trim(),
-      note: document.getElementById('fNote').value.trim(),
-      zones,
-      stock: stockObj,
-      reorder_point: reorder,
-      created_at: new Date().toISOString()
-    });
-    toast('Produkt hinzugefügt ✓', 'success');
+    const stockObj={};
+    zones.forEach(z=>stockObj[z]=stock);
+    db.products.push({ id:genId(), name, unit:document.getElementById('fUnit').value.trim(),
+      note:document.getElementById('fNote').value.trim(), zones, stock:stockObj,
+      reorder_point:reorder, subcatId, created_at:new Date().toISOString() });
+    toast('Produkt hinzugefügt ✓','success');
   }
-
-  saveData(db);
-  closeModal('modalAdd');
-  render();
+  saveData(db); closeModal('modalAdd'); render();
 }
 
-// ═══════════════════════════════════════════════════════
-//  STOCK ACTION
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════
+//  STOCK
+// ═══════════════════════════════════════
 function openStockModal(productId, zone) {
-  const p = db.products.find(x => x.id === productId);
+  const p = db.products.find(x=>x.id===productId);
   if (!p) return;
-  document.getElementById('sProductId').value = productId;
-  document.getElementById('sZone').value = zone;
-  document.getElementById('sProductName').value =
-    `${p.name} (${zone === 'geschaeft' ? 'Geschäft' : 'Keller'} · aktuell: ${p.stock[zone] ?? 0} ${p.unit || 'Stk.'})`;
-  document.getElementById('sAction').value = 'add';
-  document.getElementById('sQty').value = '1';
+  document.getElementById('sProductId').value=productId;
+  document.getElementById('sZone').value=zone;
+  document.getElementById('sProductName').value=`${p.name} (${zone==='geschaeft'?'Geschäft':'Keller'} · aktuell: ${p.stock[zone]??0} ${p.unit||'Stk.'})`;
+  document.getElementById('sAction').value='add';
+  document.getElementById('sQty').value='1';
   openModal('modalStock');
-  setTimeout(() => document.getElementById('sQty').focus(), 100);
+  setTimeout(()=>document.getElementById('sQty').focus(),100);
 }
 
 function applyStock() {
-  const id   = document.getElementById('sProductId').value;
-  const zone = document.getElementById('sZone').value;
-  const act  = document.getElementById('sAction').value;
-  const qty  = parseInt(document.getElementById('sQty').value) || 0;
-
-  const p = db.products.find(x => x.id === id);
+  const id=document.getElementById('sProductId').value;
+  const zone=document.getElementById('sZone').value;
+  const act=document.getElementById('sAction').value;
+  const qty=parseInt(document.getElementById('sQty').value)||0;
+  const p=db.products.find(x=>x.id===id);
   if (!p) return;
-  if (p.stock[zone] === undefined) p.stock[zone] = 0;
-
-  if (act === 'add') {
-    p.stock[zone] += qty;
-  } else if (act === 'sub') {
-    if (p.stock[zone] < qty) { toast('Nicht genug Bestand zum Entnehmen.', 'error'); return; }
-    p.stock[zone] -= qty;
-  } else {
-    p.stock[zone] = qty;
-  }
-
-  saveData(db);
-  closeModal('modalStock');
-  toast(`Bestand aktualisiert: ${p.stock[zone]} ${p.unit || 'Stk.'}`, 'success');
-  render();
+  if (p.stock[zone]===undefined) p.stock[zone]=0;
+  if (act==='add') p.stock[zone]+=qty;
+  else if (act==='sub') { if(p.stock[zone]<qty){toast('Nicht genug Bestand.','error');return;} p.stock[zone]-=qty; }
+  else p.stock[zone]=qty;
+  saveData(db); closeModal('modalStock');
+  toast(`Bestand: ${p.stock[zone]} ${p.unit||'Stk.'}`, 'success'); render();
 }
 
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════
 //  TRANSFER
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════
 function openTransferModal(productId, fromZone) {
-  const p = db.products.find(x => x.id === productId);
+  const p=db.products.find(x=>x.id===productId);
   if (!p) return;
-  document.getElementById('tProductId').value = productId;
-  document.getElementById('tProductName').value = p.name;
-  document.getElementById('tFrom').value = fromZone;
-  document.getElementById('tTo').value = fromZone === 'geschaeft' ? 'keller' : 'geschaeft';
-  document.getElementById('tQty').value = '1';
+  document.getElementById('tProductId').value=productId;
+  document.getElementById('tProductName').value=p.name;
+  document.getElementById('tFrom').value=fromZone;
+  document.getElementById('tTo').value=fromZone==='geschaeft'?'keller':'geschaeft';
+  document.getElementById('tQty').value='1';
   openModal('modalTransfer');
-  setTimeout(() => document.getElementById('tQty').focus(), 100);
+  setTimeout(()=>document.getElementById('tQty').focus(),100);
 }
 
 function applyTransfer() {
-  const id   = document.getElementById('tProductId').value;
-  const from = document.getElementById('tFrom').value;
-  const to   = document.getElementById('tTo').value;
-  const qty  = parseInt(document.getElementById('tQty').value) || 0;
-
-  if (from === to) { toast('Start- und Zielstandort müssen verschieden sein.', 'error'); return; }
-
-  const p = db.products.find(x => x.id === id);
+  const id=document.getElementById('tProductId').value;
+  const from=document.getElementById('tFrom').value;
+  const to=document.getElementById('tTo').value;
+  const qty=parseInt(document.getElementById('tQty').value)||0;
+  if (from===to){toast('Start und Ziel müssen verschieden sein.','error');return;}
+  const p=db.products.find(x=>x.id===id);
   if (!p) return;
-  if ((p.stock[from] || 0) < qty) { toast('Nicht genug Bestand für den Transfer.', 'error'); return; }
-
-  p.stock[from] = (p.stock[from] || 0) - qty;
-  p.stock[to]   = (p.stock[to]   || 0) + qty;
-
-  // Ensure destination zone is tracked
+  if ((p.stock[from]||0)<qty){toast('Nicht genug Bestand.','error');return;}
+  p.stock[from]=(p.stock[from]||0)-qty;
+  p.stock[to]=(p.stock[to]||0)+qty;
   if (!p.zones.includes(to)) p.zones.push(to);
-
-  saveData(db);
-  closeModal('modalTransfer');
-  const fromLabel = from === 'geschaeft' ? 'Geschäft' : 'Keller';
-  const toLabel   = to   === 'geschaeft' ? 'Geschäft' : 'Keller';
-  toast(`${qty} ${p.unit || 'Stk.'} von ${fromLabel} → ${toLabel} transferiert ✓`, 'success');
-  render();
+  saveData(db); closeModal('modalTransfer');
+  toast(`${qty} ${p.unit||'Stk.'} transferiert ✓`,'success'); render();
 }
 
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════
 //  DELETE
-// ═══════════════════════════════════════════════════════
-let pendingDeleteId = null;
-
+// ═══════════════════════════════════════
+let pendingDeleteId=null;
 function openDeleteModal(id) {
-  const p = db.products.find(x => x.id === id);
+  const p=db.products.find(x=>x.id===id);
   if (!p) return;
-  pendingDeleteId = id;
-  document.getElementById('delProductName').textContent = p.name;
+  pendingDeleteId=id;
+  document.getElementById('delProductName').textContent=p.name;
   openModal('modalDelete');
 }
-
 function confirmDelete() {
   if (!pendingDeleteId) return;
-  db.products = db.products.filter(p => p.id !== pendingDeleteId);
-  saveData(db);
-  pendingDeleteId = null;
-  closeModal('modalDelete');
-  toast('Produkt gelöscht.', 'success');
-  render();
+  db.products=db.products.filter(p=>p.id!==pendingDeleteId);
+  saveData(db); pendingDeleteId=null; closeModal('modalDelete');
+  toast('Produkt gelöscht.','success'); render();
 }
 
-// ═══════════════════════════════════════════════════════
-//  IMPORT / EXPORT
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════
+//  CATEGORY MANAGER
+// ═══════════════════════════════════════
+function openCatManager() {
+  renderCatList();
+  openModal('modalCats');
+}
+
+function renderCatList() {
+  const list = document.getElementById('catManageList');
+  if (!db.categories.length) {
+    list.innerHTML='<div style="font-size:13px;color:var(--mid);padding:10px">Noch keine Kategorien.</div>';
+    return;
+  }
+  list.innerHTML = db.categories.map(c => {
+    const zoneChips = c.zones.map(z=>
+      `<span class="cat-zone-chip ${z==='geschaeft'?'chip-g':'chip-k'}">${z==='geschaeft'?'Geschäft':'Keller'}</span>`
+    ).join('');
+    return `
+    <div class="cat-manage-item">
+      <span>${esc(c.name)}</span>
+      <div style="display:flex;gap:4px;align-items:center">${zoneChips}</div>
+      <button class="btn btn-outline btn-xs" onclick="openRenameCategory('${c.id}')">✏️</button>
+      <button class="btn btn-danger btn-xs" onclick="deleteCategory('${c.id}')">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+function addCategory() {
+  const name = document.getElementById('newCatName').value.trim();
+  if (!name) { toast('Bitte Namen eingeben.','error'); return; }
+  const zoneVal = document.getElementById('newCatZone').value;
+  const zones = zoneVal==='beide'?['geschaeft','keller']:[zoneVal];
+  db.categories.push({ id:genId(), name, zones });
+  saveData(db);
+  document.getElementById('newCatName').value='';
+  renderCatList(); render();
+  toast(`Kategorie „${name}" hinzugefügt ✓`,'success');
+}
+
+function deleteCategory(id) {
+  const cat = db.categories.find(c=>c.id===id);
+  if (!cat) return;
+  if (!confirm(`Kategorie „${cat.name}" löschen? Produkte bleiben erhalten, werden aber keiner Kategorie zugeordnet.`)) return;
+  db.categories = db.categories.filter(c=>c.id!==id);
+  db.products.forEach(p=>{ if(p.subcatId===id) p.subcatId=null; });
+  saveData(db); renderCatList(); render();
+  toast(`Kategorie gelöscht.`,'success');
+}
+
+function openRenameCategory(id) {
+  const cat = db.categories.find(c=>c.id===id);
+  if (!cat) return;
+  document.getElementById('renCatId').value=id;
+  document.getElementById('renCatName').value=cat.name;
+  openModal('modalRenCat');
+  setTimeout(()=>document.getElementById('renCatName').focus(),100);
+}
+
+function confirmRenameCategory() {
+  const id=document.getElementById('renCatId').value;
+  const name=document.getElementById('renCatName').value.trim();
+  if (!name){toast('Bitte Namen eingeben.','error');return;}
+  const cat=db.categories.find(c=>c.id===id);
+  if (cat) cat.name=name;
+  saveData(db); closeModal('modalRenCat'); renderCatList(); render();
+  toast(`Umbenannt zu „${name}" ✓`,'success');
+}
+
+// ═══════════════════════════════════════
+//  IMPORT / EXPORT JSON
+// ═══════════════════════════════════════
 function exportData() {
-  const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href = url;
-  a.download = `lager-backup-${new Date().toISOString().slice(0,10)}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-  toast('Export abgeschlossen ✓', 'success');
+  const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`lager-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.click(); URL.revokeObjectURL(url);
+  toast('Export abgeschlossen ✓','success');
 }
 
 function importData(event) {
-  const file = event.target.files[0];
+  const file=event.target.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
+  const reader=new FileReader();
+  reader.onload=e=>{
     try {
-      const parsed = JSON.parse(e.target.result);
-      if (!parsed.products || !Array.isArray(parsed.products)) {
-        throw new Error('Ungültiges Format');
-      }
-      db = parsed;
-      saveData(db);
-      render();
-      toast(`Import erfolgreich: ${db.products.length} Produkte geladen ✓`, 'success');
-    } catch {
-      toast('Import fehlgeschlagen: ungültiges JSON.', 'error');
-    }
-    event.target.value = '';
+      const parsed=JSON.parse(e.target.result);
+      if (!parsed.products||!Array.isArray(parsed.products)) throw new Error();
+      db=parsed;
+      if (!db.categories) db.categories=DEFAULT_CATS;
+      saveData(db); render();
+      toast(`Import: ${db.products.length} Produkte ✓`,'success');
+    } catch { toast('Import fehlgeschlagen.','error'); }
+    event.target.value='';
   };
   reader.readAsText(file);
 }
 
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════
 //  EXCEL IMPORT
-// ═══════════════════════════════════════════════════════
-let excelRows    = [];
-let excelHeaders = [];
+// ═══════════════════════════════════════
+let excelRows=[], excelHeaders=[];
 
 function openExcelImport(event) {
-  const file = event.target.files[0];
+  const file=event.target.files[0];
   if (!file) return;
-  event.target.value = '';
-
-  const reader = new FileReader();
-  reader.onload = e => {
+  event.target.value='';
+  const reader=new FileReader();
+  reader.onload=e=>{
     try {
-      const wb   = XLSX.read(e.target.result, { type: 'array' });
-      const ws   = wb.Sheets[wb.SheetNames[0]];
-      const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-
-      if (data.length < 2) { toast('Excel-Datei ist leer oder hat nur eine Zeile.', 'error'); return; }
-
-      excelHeaders = data[0].map(String);
-      excelRows    = data.slice(1).filter(r => r.some(c => c !== ''));
-
-      renderExcelMapper();
-      openModal('modalExcel');
-    } catch(err) {
-      toast('Datei konnte nicht gelesen werden.', 'error');
-    }
+      const wb=XLSX.read(e.target.result,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const data=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      if (data.length<2){toast('Datei leer oder nur eine Zeile.','error');return;}
+      excelHeaders=data[0].map(String);
+      excelRows=data.slice(1).filter(r=>r.some(c=>c!==''));
+      renderExcelMapper(); openModal('modalExcel');
+    } catch { toast('Datei konnte nicht gelesen werden.','error'); }
   };
   reader.readAsArrayBuffer(file);
 }
 
 function renderExcelMapper() {
-  const body   = document.getElementById('excelBody');
-  const footer = document.getElementById('excelFooter');
+  const body=document.getElementById('excelBody');
+  const footer=document.getElementById('excelFooter');
+  function guess(kw){const i=excelHeaders.findIndex(h=>kw.some(k=>h.toLowerCase().includes(k)));return i>=0?i:'';}
+  const gName=guess(['name','bezeichnung','produkt','artikel']);
+  const gUnit=guess(['einheit','unit']);
+  const gStockG=guess(['geschäft','geschaeft','shop','laden']);
+  const gStockK=guess(['keller','lager','depot']);
+  const gReorder=guess(['nachbestell','reorder','mindest','min']);
+  const gNote=guess(['notiz','note','kommentar','info']);
 
-  const opts = `<option value="">– nicht verwenden –</option>` +
-    excelHeaders.map((h,i) => `<option value="${i}">${h}</option>`).join('');
-
-  // Try to auto-detect common column names
-  function guess(keywords) {
-    const idx = excelHeaders.findIndex(h =>
-      keywords.some(k => h.toLowerCase().includes(k)));
-    return idx >= 0 ? idx : '';
-  }
-
-  const gName    = guess(['name','bezeichnung','produkt','artikel']);
-  const gCat     = guess(['kategorie','category','gruppe','typ']);
-  const gUnit    = guess(['einheit','unit','menge']);
-  const gStockG  = guess(['geschäft','geschaeft','shop','laden','filiale']);
-  const gStockK  = guess(['keller','lager','depot','storage']);
-  const gReorder = guess(['nachbestell','reorder','mindest','minimum','min']);
-  const gNote    = guess(['notiz','note','kommentar','info','bemerkung']);
-
-  function sel(id, preVal) {
+  function sel(id,pre){
     return `<select id="map_${id}" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font:inherit;font-size:13px;background:var(--bg)">
-      ${excelHeaders.map((h,i) =>
-        `<option value="${i}" ${String(i)===String(preVal)?'selected':''}>${h}</option>`
-      ).join('')}
-      <option value="" ${preVal===''?'selected':''}>– nicht verwenden –</option>
+      <option value="">– nicht verwenden –</option>
+      ${excelHeaders.map((h,i)=>`<option value="${i}" ${String(i)===String(pre)?'selected':''}>${h}</option>`).join('')}
     </select>`;
   }
 
-  body.innerHTML = `
-    <p style="font-size:13px;color:var(--mid);margin-bottom:4px">
-      <strong>${excelRows.length} Zeilen</strong> gefunden · ${excelHeaders.length} Spalten.<br>
-      Ordne zu, welche Spalte welcher Information entspricht:
-    </p>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px">
-      <div class="field"><label>Produktname *</label>${sel('name', gName)}</div>
-      <div class="field"><label>Kategorie</label>${sel('cat', gCat)}</div>
-      <div class="field"><label>Einheit</label>${sel('unit', gUnit)}</div>
-      <div class="field"><label>Nachbestellpunkt</label>${sel('reorder', gReorder)}</div>
-      <div class="field"><label>Bestand Geschäft</label>${sel('stockG', gStockG)}</div>
-      <div class="field"><label>Bestand Keller</label>${sel('stockK', gStockK)}</div>
+  const catOpts = `<option value="">– keine –</option>` +
+    db.categories.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+
+  body.innerHTML=`
+    <p style="font-size:13px;color:var(--mid);margin-bottom:8px"><strong>${excelRows.length} Zeilen</strong> · ${excelHeaders.length} Spalten gefunden.<br>Ordne zu, welche Spalte was bedeutet:</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="field"><label>Produktname *</label>${sel('name',gName)}</div>
+      <div class="field"><label>Einheit</label>${sel('unit',gUnit)}</div>
+      <div class="field"><label>Bestand Geschäft</label>${sel('stockG',gStockG)}</div>
+      <div class="field"><label>Bestand Keller</label>${sel('stockK',gStockK)}</div>
+      <div class="field"><label>Nachbestellpunkt</label>${sel('reorder',gReorder)}</div>
+      <div class="field"><label>Notiz</label>${sel('note',gNote)}</div>
     </div>
-    <div class="field" style="margin-top:4px"><label>Notiz / Kommentar</label>${sel('note', gNote)}</div>
     <div class="field" style="margin-top:8px">
-      <label>Standort (wenn keine Bestandsspalte zugeordnet)</label>
+      <label>Unterkategorie zuweisen</label>
+      <select id="map_subcat" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font:inherit;font-size:13px;background:var(--bg)">${catOpts}</select>
+    </div>
+    <div class="field" style="margin-top:4px">
+      <label>Standort (wenn keine Bestandsspalte)</label>
       <select id="map_zone" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font:inherit;font-size:13px;background:var(--bg)">
-        <option value="beide">Beide (Geschäft + Keller)</option>
-        <option value="geschaeft">Nur Geschäft</option>
-        <option value="keller">Nur Keller</option>
+        <option value="beide">Beide</option><option value="geschaeft">Nur Geschäft</option><option value="keller">Nur Keller</option>
       </select>
     </div>
-    <div style="margin-top:12px;background:var(--bg);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--mid)">
-      <strong>Vorschau (erste 3 Zeilen):</strong><br>
-      ${excelRows.slice(0,3).map(r =>
-        `<span style="display:block;margin-top:3px">${excelHeaders.map((h,i)=>r[i]!==''?`${h}: <b>${r[i]}</b>`:'').filter(Boolean).join(' · ')}</span>`
-      ).join('')}
-    </div>
-  `;
+    <div style="margin-top:10px;background:var(--bg);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--mid)">
+      <strong>Vorschau (erste 3 Zeilen):</strong>
+      ${excelRows.slice(0,3).map(r=>`<div style="margin-top:3px">${excelHeaders.map((h,i)=>r[i]!==''?`${h}: <b>${r[i]}</b>`:'').filter(Boolean).join(' · ')}</div>`).join('')}
+    </div>`;
 
-  footer.innerHTML = `
+  footer.innerHTML=`
     <button class="btn btn-outline" onclick="closeModal('modalExcel')">Abbrechen</button>
-    <button class="btn btn-primary" onclick="applyExcelImport()">📥 Importieren</button>
-  `;
-}
-
-function getMapVal(id) {
-  const el = document.getElementById('map_' + id);
-  return el ? el.value : '';
+    <button class="btn btn-primary" onclick="applyExcelImport()">📥 Importieren</button>`;
 }
 
 function applyExcelImport() {
-  const iName    = getMapVal('name');
-  const iCat     = getMapVal('cat');
-  const iUnit    = getMapVal('unit');
-  const iReorder = getMapVal('reorder');
-  const iStockG  = getMapVal('stockG');
-  const iStockK  = getMapVal('stockK');
-  const iNote    = getMapVal('note');
-  const fallbackZone = getMapVal('zone') || 'beide';
-
-  if (iName === '') { toast('Bitte mindestens "Produktname" zuordnen.', 'error'); return; }
-
-  let added = 0, skipped = 0;
-
-  excelRows.forEach(row => {
-    const name = String(row[iName] ?? '').trim();
-    if (!name) { skipped++; return; }
-
-    const cat     = iCat     !== '' ? String(row[iCat]     ?? '').trim() : '';
-    const unit    = iUnit    !== '' ? String(row[iUnit]    ?? '').trim() : '';
-    const reorder = iReorder !== '' ? parseInt(row[iReorder]) || 0 : 2;
-    const note    = iNote    !== '' ? String(row[iNote]    ?? '').trim() : '';
-
-    const hasG = iStockG !== '' && row[iStockG] !== '';
-    const hasK = iStockK !== '' && row[iStockK] !== '';
-    const stockG = hasG ? (parseInt(row[iStockG]) || 0) : 0;
-    const stockK = hasK ? (parseInt(row[iStockK]) || 0) : 0;
-
-    let zones = [];
-    let stockObj = {};
-
-    if (hasG && hasK) {
-      zones = ['geschaeft','keller'];
-      stockObj = { geschaeft: stockG, keller: stockK };
-    } else if (hasG) {
-      zones = ['geschaeft'];
-      stockObj = { geschaeft: stockG };
-    } else if (hasK) {
-      zones = ['keller'];
-      stockObj = { keller: stockK };
-    } else {
-      zones = fallbackZone === 'beide' ? ['geschaeft','keller'] : [fallbackZone];
-      zones.forEach(z => stockObj[z] = 0);
-    }
-
-    db.products.push({
-      id: genId(),
-      name, cat, unit, note,
-      category: cat,
-      zones,
-      stock: stockObj,
-      reorder_point: reorder,
-      created_at: new Date().toISOString()
-    });
+  const iName=document.getElementById('map_name')?.value;
+  const iUnit=document.getElementById('map_unit')?.value;
+  const iStockG=document.getElementById('map_stockG')?.value;
+  const iStockK=document.getElementById('map_stockK')?.value;
+  const iReorder=document.getElementById('map_reorder')?.value;
+  const iNote=document.getElementById('map_note')?.value;
+  const iSubcat=document.getElementById('map_subcat')?.value||null;
+  const fallbackZone=document.getElementById('map_zone')?.value||'beide';
+  if (iName===''){toast('Bitte Produktname zuordnen.','error');return;}
+  let added=0, skipped=0;
+  excelRows.forEach(row=>{
+    const name=String(row[iName]??'').trim();
+    if (!name){skipped++;return;}
+    const unit=iUnit!==''?String(row[iUnit]??'').trim():'';
+    const reorder=iReorder!==''?parseInt(row[iReorder])||0:2;
+    const note=iNote!==''?String(row[iNote]??'').trim():'';
+    const hasG=iStockG!==''&&row[iStockG]!=='';
+    const hasK=iStockK!==''&&row[iStockK]!=='';
+    const stockG=hasG?parseInt(row[iStockG])||0:0;
+    const stockK=hasK?parseInt(row[iStockK])||0:0;
+    let zones=[],stockObj={};
+    if(hasG&&hasK){zones=['geschaeft','keller'];stockObj={geschaeft:stockG,keller:stockK};}
+    else if(hasG){zones=['geschaeft'];stockObj={geschaeft:stockG};}
+    else if(hasK){zones=['keller'];stockObj={keller:stockK};}
+    else{zones=fallbackZone==='beide'?['geschaeft','keller']:[fallbackZone];zones.forEach(z=>stockObj[z]=0);}
+    db.products.push({id:genId(),name,unit,note,zones,stock:stockObj,reorder_point:reorder,subcatId:iSubcat||null,created_at:new Date().toISOString()});
     added++;
   });
-
-  saveData(db);
-  closeModal('modalExcel');
-  render();
-  toast(`${added} Produkte importiert${skipped ? `, ${skipped} übersprungen` : ''} ✓`, 'success');
+  saveData(db); closeModal('modalExcel'); render();
+  toast(`${added} Produkte importiert${skipped?`, ${skipped} übersprungen`:''} ✓`,'success');
 }
 
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════
 //  TOAST
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════
 let toastTimer;
-function toast(msg, type = 'success') {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.className = `show ${type}`;
+function toast(msg,type='success'){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.className=`show ${type}`;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.className = '', 3200);
+  toastTimer=setTimeout(()=>el.className='',3200);
 }
 
-// ═══════════════════════════════════════════════════════
-//  UTILS
-// ═══════════════════════════════════════════════════════
-function esc(str) {
-  return String(str)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function esc(str){
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ═══════════════════════════════════════════════════════
-//  KEYBOARD
-// ═══════════════════════════════════════════════════════
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') {
-    document.querySelectorAll('.modal-backdrop.open').forEach(m => m.classList.remove('open'));
-  }
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape') document.querySelectorAll('.modal-backdrop.open').forEach(m=>m.classList.remove('open'));
 });
 
-// ═══════════════════════════════════════════════════════
-//  INIT
-// ═══════════════════════════════════════════════════════
 render();
 </script>
 </body>
