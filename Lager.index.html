@@ -308,6 +308,7 @@
     </div>
   </div>
   <div class="header-actions">
+    <span id="syncStatus" style="font-size:11px;color:#aaa;align-self:center">💾 Lokal</span>
     <button class="btn btn-ghost btn-sm" onclick="exportData()">⬇ Export JSON</button>
     <label class="btn btn-ghost btn-sm" style="cursor:pointer">
       ⬆ Import JSON
@@ -644,6 +645,71 @@
 // ═══════════════════════════════════════
 const STORAGE_KEY = 'lager_agreathaairday_v8';
 
+// ── SUPABASE ──
+const SUPA_URL = 'https://lpuxvvfrrcnbuzafscyk.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxwdXh2dmZycmNidXphZnNjeWsiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc0ODI1MTg4MCwiZXhwIjoyMDYzODI3ODgwfQ.eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9';
+const SUPA_TABLE = 'lager_data';
+
+let syncStatus = 'lokal'; // 'lokal' | 'syncing' | 'synced' | 'error'
+
+function setSyncStatus(s) {
+  syncStatus = s;
+  const el = document.getElementById('syncStatus');
+  if (!el) return;
+  const map = {
+    lokal:   { text: '💾 Lokal',        color: '#aaa' },
+    syncing: { text: '🔄 Synchronisiert…', color: 'var(--gold)' },
+    synced:  { text: '☁️ Synchronisiert',  color: 'var(--mint)' },
+    error:   { text: '⚠️ Sync-Fehler',    color: 'var(--rose)' },
+  };
+  const m = map[s] || map.lokal;
+  el.textContent = m.text;
+  el.style.color = m.color;
+}
+
+async function syncToSupabase(data) {
+  setSyncStatus('syncing');
+  try {
+    const res = await fetch(`${SUPA_URL}/rest/v1/${SUPA_TABLE}?id=eq.singleton`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': SUPA_KEY,
+        'Authorization': `Bearer ${SUPA_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({ data, updated_at: new Date().toISOString() })
+    });
+    if (!res.ok) throw new Error(res.status);
+    setSyncStatus('synced');
+  } catch(e) {
+    setSyncStatus('error');
+    console.warn('Supabase sync error:', e);
+  }
+}
+
+async function loadFromSupabase() {
+  setSyncStatus('syncing');
+  try {
+    const res = await fetch(`${SUPA_URL}/rest/v1/${SUPA_TABLE}?id=eq.singleton&select=data,updated_at`, {
+      headers: {
+        'apikey': SUPA_KEY,
+        'Authorization': `Bearer ${SUPA_KEY}`
+      }
+    });
+    if (!res.ok) throw new Error(res.status);
+    const rows = await res.json();
+    if (rows && rows[0] && rows[0].data && rows[0].data.products) {
+      setSyncStatus('synced');
+      return rows[0].data;
+    }
+  } catch(e) {
+    setSyncStatus('error');
+    console.warn('Supabase load error:', e);
+  }
+  return null;
+}
+
 const DEFAULT_CATS = [
   { id:'c1', name:'Farben',             zones:['geschaeft'] },
   { id:'c2', name:'Verkaufsprodukte',   zones:['geschaeft'] },
@@ -666,10 +732,26 @@ function loadData() {
 
 function saveData(data) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  syncToSupabase(data);
 }
 
 let db = loadData();
 if (!db.categories) db.categories = DEFAULT_CATS;
+
+// Beim Start: Daten aus der Cloud laden
+(async () => {
+  const cloud = await loadFromSupabase();
+  if (cloud && cloud.products && cloud.products.length > 0) {
+    // Cloud hat Daten — nehmen wir sie
+    db = cloud;
+    if (!db.categories) db.categories = DEFAULT_CATS;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+    render();
+  } else if (db.products && db.products.length > 0) {
+    // Lokale Daten vorhanden — in die Cloud hochladen
+    syncToSupabase(db);
+  }
+})();
 
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2,6);
