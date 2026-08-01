@@ -1,5 +1,5 @@
 {
-  "name": "Lager · Great Hair Day",
+  "name": "Lager \u00b7 Great Hair Day",
   "short_name": "Lager",
   "icons": [
     {
@@ -9,7 +9,7 @@
       "purpose": "any maskable"
     }
   ],
-  "start_url": "./Lager_index.html",
+  "start_url": "./Lager.index.html",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#1c1917"
