@@ -1,0 +1,16 @@
+{
+  "name": "Lager · Great Hair Day",
+  "short_name": "Lager",
+  "icons": [
+    {
+      "src": "https://mirjamwalenta-a11y.github.io/abwesenheiten-ghd/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "./Lager_index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1c1917"
+}
