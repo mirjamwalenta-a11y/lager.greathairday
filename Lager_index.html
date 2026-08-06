@@ -223,7 +223,7 @@
   .inline-num:focus { outline: none; border-color: var(--gold); background: #fff; }
 
   /* DRAG & DROP */
-  .product-row { cursor: grab; }
+  .product-row { cursor: default; }
   .product-row.dragging { opacity: .4; cursor: grabbing; }
   .product-row.drag-over { border: 2px dashed var(--gold); background: #FFFBF0; }
 
@@ -869,18 +869,19 @@ function productRowHTML(p, zone) {
 
   return `
   <div class="product-row${isLow?' low-stock':''}"
-    draggable="true" data-id="${p.id}"
-    ondragstart="dragStart(event,'${p.id}')"
+    data-id="${p.id}"
     ondragover="dragOver(event)"
     ondragleave="dragLeave(event)"
     ondrop="dragDrop(event,'${p.id}')">
     <div class="pr-top">
       <input type="checkbox" class="pr-check" onchange="toggleSelect('${p.id}',this)" ${selectedIds.has(p.id)?'checked':''}>
-      <div style="flex:1">
+      <div style="flex:1;cursor:grab" draggable="true" ondragstart="dragStart(event,'${p.id}')">
         <div class="pr-name">${esc(p.name)}</div>
         ${p.unit ? `<div class="pr-cat">${esc(p.unit)}</div>` : ''}
       </div>
       <div class="pr-actions">
+        <button class="btn btn-outline btn-xs" onclick="moveProduct('${p.id}','${zone}',-1)" title="Nach oben">▲</button>
+        <button class="btn btn-outline btn-xs" onclick="moveProduct('${p.id}','${zone}',1)" title="Nach unten">▼</button>
         <button class="btn btn-outline btn-xs" onclick="openEditModal('${p.id}')">✏️</button>
         <button class="btn btn-outline btn-xs" onclick="openDeleteModal('${p.id}')">🗑</button>
       </div>
@@ -892,7 +893,7 @@ function productRowHTML(p, zone) {
       ${isLow?'<span class="reorder-chip">Zu bestellen</span>':''}
       <span style="font-size:11px;color:var(--mid);display:flex;align-items:center;gap:4px">
         Min: <input type="number" class="inline-num" value="${p.reorder_point}" min="0"
-          oninput="saveMinBestand('${p.id}',this.value,this)" onclick="event.stopPropagation()">
+          oninput="saveMinBestand('${p.id}',this.value,this)" onclick="event.stopPropagation()" ondragstart="event.stopPropagation(); event.preventDefault()">
       </span>
       <button class="btn btn-outline btn-xs" onclick="openStockModal('${p.id}','${zone}')">± Bestand</button>
       ${hasOther?`<button class="btn btn-outline btn-xs" onclick="openTransferModal('${p.id}','${zone}')">⇄ → ${otherLabel}</button>`:''}
@@ -1637,6 +1638,32 @@ function dragDrop(event, targetId) {
 document.addEventListener('dragend', () => {
   document.querySelectorAll('.product-row').forEach(r => r.classList.remove('dragging','drag-over'));
 });
+
+
+// ═══════════════════════════════════════
+//  MOVE PRODUCT UP / DOWN
+// ═══════════════════════════════════════
+function moveProduct(id, zone, direction) {
+  const p = db.products.find(x => x.id === id);
+  if (!p) return;
+
+  const sameGroup = db.products.filter(x =>
+    x.zones.includes(zone) && x.subcatId === p.subcatId
+  );
+
+  const idxInGroup = sameGroup.findIndex(x => x.id === id);
+  const newIdxInGroup = idxInGroup + direction;
+  if (newIdxInGroup < 0 || newIdxInGroup >= sameGroup.length) return;
+
+  const swapWith = sameGroup[newIdxInGroup];
+  const idxA = db.products.findIndex(x => x.id === id);
+  const idxB = db.products.findIndex(x => x.id === swapWith.id);
+
+  [db.products[idxA], db.products[idxB]] = [db.products[idxB], db.products[idxA]];
+
+  saveData(db);
+  render();
+}
 
 render();
 </script>
