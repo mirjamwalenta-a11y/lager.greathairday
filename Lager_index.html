@@ -742,13 +742,21 @@ let db = loadData();
 if (!db.categories) db.categories = DEFAULT_CATS;
 
 // Sicherstellen dass alle Produkte eine sortOrder haben
-function ensureSortOrder(data) {
+function ensureSortOrder(data, save) {
   if (!data || !data.products) return;
+  let changed = false;
   data.products.forEach((p, i) => {
-    if (p.sortOrder === undefined || p.sortOrder === null) p.sortOrder = i * 10;
+    if (p.sortOrder === undefined || p.sortOrder === null) {
+      p.sortOrder = i * 10;
+      changed = true;
+    }
   });
+  // Wenn Werte fehlten, sofort speichern damit sie beim nächsten Laden da sind
+  if (changed && save) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }
 }
-ensureSortOrder(db);
+ensureSortOrder(db, true);
 
 // Beim Start: Daten aus der Cloud laden
 (async () => {
@@ -757,7 +765,7 @@ ensureSortOrder(db);
     // Cloud hat Daten — nehmen wir sie
     db = cloud;
     if (!db.categories) db.categories = DEFAULT_CATS;
-    ensureSortOrder(db);
+    ensureSortOrder(db, true);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
     render();
   } else if (db.products && db.products.length > 0) {
