@@ -741,6 +741,15 @@ function saveData(data) {
 let db = loadData();
 if (!db.categories) db.categories = DEFAULT_CATS;
 
+// Sicherstellen dass alle Produkte eine sortOrder haben
+function ensureSortOrder(data) {
+  if (!data || !data.products) return;
+  data.products.forEach((p, i) => {
+    if (p.sortOrder === undefined || p.sortOrder === null) p.sortOrder = i * 10;
+  });
+}
+ensureSortOrder(db);
+
 // Beim Start: Daten aus der Cloud laden
 (async () => {
   const cloud = await loadFromSupabase();
@@ -748,6 +757,7 @@ if (!db.categories) db.categories = DEFAULT_CATS;
     // Cloud hat Daten — nehmen wir sie
     db = cloud;
     if (!db.categories) db.categories = DEFAULT_CATS;
+    ensureSortOrder(db);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
     render();
   } else if (db.products && db.products.length > 0) {
@@ -814,10 +824,7 @@ function renderZone(zone, products) {
       </div>
       <div class="subcat-body ${isOpen?'open':''}" id="${domId}">
         ${catProds.length
-          ? `<div class="product-list">${catProds.sort((a,b)=>{
-              const aL=(a.stock[zone]||0)<=a.reorder_point, bL=(b.stock[zone]||0)<=b.reorder_point;
-              return aL!==bL?(aL?-1:1):a.name.localeCompare(b.name);
-            }).map(p=>productRowHTML(p,zone)).join('')}</div>`
+          ? `<div class="product-list">${catProds.sort((a,b)=>(a.sortOrder??9999)-(b.sortOrder??9999)).map(p=>productRowHTML(p,zone)).join('')}</div>`
           : `<div class="empty-state" style="padding:16px"><div class="icon-big" style="font-size:22px">📦</div>Noch keine Produkte in dieser Kategorie.</div>`
         }
       </div>
@@ -1647,29 +1654,23 @@ function moveProduct(id, zone, direction) {
   const p = db.products.find(x => x.id === id);
   if (!p) return;
 
-  // Gleiche Gruppe = gleiche Zone UND gleiche Subkategorie (falls vorhanden)
-  const sameGroup = db.products.filter(x => {
-    if (!x.zones || !x.zones.includes(zone)) return false;
-    // Subkategorie-Vergleich: beide haben eine, oder beide haben keine
-    const sameSubcat = (p.subcatId && x.subcatId)
-      ? x.subcatId === p.subcatId
-      : !p.subcatId && !x.subcatId;
-    return sameSubcat;
-  });
+  // Sicherstellen dass alle Produkte eine Sortierzahl haben
+  db.products.forEach((x, i) => { if (x.sortOrder === undefined) x.sortOrder = i * 10; });
 
-  // Fallback: wenn Gruppe leer oder nur 1 Element, alle in dieser Zone nehmen
-  const group = sameGroup.length > 1 ? sameGroup : db.products.filter(x => x.zones && x.zones.includes(zone));
+  // Gleiche Gruppe = gleiche Zone UND gleiche Subkategorie
+  const group = db.products
+    .filter(x => x.zones && x.zones.includes(zone) && x.subcatId === p.subcatId)
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 
   const idxInGroup = group.findIndex(x => x.id === id);
   const newIdxInGroup = idxInGroup + direction;
   if (idxInGroup < 0 || newIdxInGroup < 0 || newIdxInGroup >= group.length) return;
 
-  const swapWith = group[newIdxInGroup];
-  const idxA = db.products.findIndex(x => x.id === id);
-  const idxB = db.products.findIndex(x => x.id === swapWith.id);
-  if (idxA < 0 || idxB < 0) return;
-
-  [db.products[idxA], db.products[idxB]] = [db.products[idxB], db.products[idxA]];
+  // Sortierzahlen tauschen
+  const orderA = group[idxInGroup].sortOrder ?? 0;
+  const orderB = group[newIdxInGroup].sortOrder ?? 0;
+  group[idxInGroup].sortOrder = orderB;
+  group[newIdxInGroup].sortOrder = orderA;
 
   saveData(db);
   render();
