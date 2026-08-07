@@ -312,6 +312,7 @@
   </div>
   <div class="header-actions">
     <span id="syncStatus" style="font-size:11px;color:#aaa;align-self:center">💾 Lokal</span>
+    <button class="btn btn-danger btn-sm" style="font-size:11px;padding:2px 8px" onclick="if(confirm('Reihenfolge auf Standard zurücksetzen?')){localStorage.removeItem('lager_agreathaairday_v10');location.reload();}">🔄 Reihenfolge reset</button>
     <button class="btn btn-ghost btn-sm" onclick="exportData()">⬇ Export JSON</button>
     <label class="btn btn-ghost btn-sm" style="cursor:pointer">
       ⬆ Import JSON
