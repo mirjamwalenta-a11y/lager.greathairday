@@ -895,8 +895,8 @@ function productRowHTML(p, zone) {
         ${p.unit ? `<div class="pr-cat">${esc(p.unit)}</div>` : ''}
       </div>
       <div class="pr-actions">
-        <button class="btn btn-outline btn-xs" onclick="moveProduct('${p.id}','${zone}',-1)" title="Nach oben">▲</button>
-        <button class="btn btn-outline btn-xs" onclick="moveProduct('${p.id}','${zone}',1)" title="Nach unten">▼</button>
+        <button class="btn btn-outline btn-xs move-btn" data-id="${p.id}" data-zone="${zone}" data-dir="-1" title="Nach oben">▲</button>
+        <button class="btn btn-outline btn-xs move-btn" data-id="${p.id}" data-zone="${zone}" data-dir="1" title="Nach unten">▼</button>
         <button class="btn btn-outline btn-xs" onclick="openEditModal('${p.id}')">✏️</button>
         <button class="btn btn-outline btn-xs" onclick="openDeleteModal('${p.id}')">🗑</button>
       </div>
@@ -1649,6 +1649,16 @@ function dragDrop(event, targetId) {
   render();
   toast('Produkt verschoben ✓', 'success');
 }
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.move-btn');
+  if (!btn) return;
+  e.stopPropagation();
+  const id = btn.dataset.id;
+  const zone = btn.dataset.zone;
+  const dir = parseInt(btn.dataset.dir);
+  moveProduct(id, zone, dir);
+});
 
 document.addEventListener('dragend', () => {
   document.querySelectorAll('.product-row').forEach(r => r.classList.remove('dragging','drag-over'));
