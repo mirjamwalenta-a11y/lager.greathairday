@@ -1671,14 +1671,19 @@ function moveProduct(id, zone, direction) {
   const idxInGroup = grp.findIndex(x => x.id === id);
   const newIdxInGroup = idxInGroup + direction;
 
-  alert('DEBUG\nProdukt: ' + p.name + '\nZone: ' + zone + '\nSubkat: ' + p.subcatId + '\nsortOrder: ' + p.sortOrder + '\nGruppe: ' + grp.length + ' Stk\nPos: ' + idxInGroup + ' → ' + newIdxInGroup);
+  if (idxInGroup < 0 || newIdxInGroup < 0 || newIdxInGroup >= grp.length) return;
 
-  if (idxInGroup < 0 || newIdxInGroup < 0 || newIdxInGroup >= grp.length) { alert('Kein Tausch möglich'); return; }
-
-  const orderA = grp[idxInGroup].sortOrder ?? 0;
-  const orderB = grp[newIdxInGroup].sortOrder ?? 0;
-  grp[idxInGroup].sortOrder = orderB;
-  grp[newIdxInGroup].sortOrder = orderA;
+  // Tausche sortOrder
+  const orderA = grp[idxInGroup].sortOrder ?? (idxInGroup * 10);
+  const orderB = grp[newIdxInGroup].sortOrder ?? (newIdxInGroup * 10);
+  
+  // Falls beide gleich sind, neu nummerieren
+  if (orderA === orderB) {
+    grp.forEach((x, i) => { x.sortOrder = i * 10; });
+  } else {
+    grp[idxInGroup].sortOrder = orderB;
+    grp[newIdxInGroup].sortOrder = orderA;
+  }
 
   saveData(db);
   render();
