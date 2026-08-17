@@ -758,6 +758,30 @@ function ensureSortOrder(data, save) {
 }
 ensureSortOrder(db, true);
 
+// OS-Integration: Artikel unter Mindestbestand in os_aufgaben melden
+async function syncLagerOS(products) {
+  try {
+    const unterMindest = products.filter(p => {
+      if (!p.reorder_point || p.reorder_point <= 0) return false;
+      const gesamt = Object.values(p.stock || {}).reduce((s, v) => s + (v || 0), 0);
+      return gesamt <= p.reorder_point;
+    });
+    const headers = { "apikey": SUPA_KEY, "Authorization": `Bearer ${SUPA_KEY}`, "Content-Type": "application/json", "Prefer": "return=minimal" };
+    if (unterMindest.length === 0) {
+      await fetch(`${SUPA_URL}/rest/v1/os_aufgaben?bereich=eq.lager&status=eq.offen`, { method: "PATCH", headers, body: JSON.stringify({ status: "erledigt", erledigt_am: new Date().toISOString() }) });
+      return;
+    }
+    const titel = unterMindest.length === 1 ? "1 Artikel unter Mindestbestand" : `${unterMindest.length} Artikel unter Mindestbestand`;
+    const r = await fetch(`${SUPA_URL}/rest/v1/os_aufgaben?bereich=eq.lager&status=eq.offen&select=id`, { headers: { "apikey": SUPA_KEY, "Authorization": `Bearer ${SUPA_KEY}` } });
+    const existing = await r.json();
+    if (Array.isArray(existing) && existing.length > 0) {
+      await fetch(`${SUPA_URL}/rest/v1/os_aufgaben?bereich=eq.lager&status=eq.offen`, { method: "PATCH", headers, body: JSON.stringify({ titel }) });
+    } else {
+      await fetch(`${SUPA_URL}/rest/v1/os_aufgaben`, { method: "POST", headers, body: JSON.stringify({ bereich: "lager", titel, status: "offen", prioritaet: "orange", quelle: "app", app_link: "https://mirjamwalenta-a11y.github.io/lager.greathairday/" }) });
+    }
+  } catch(e) { console.warn("OS-Sync Lager fehlgeschlagen:", e.message); }
+}
+
 // Beim Start: Daten aus der Cloud laden
 (async () => {
   const cloud = await loadFromSupabase();
@@ -768,9 +792,11 @@ ensureSortOrder(db, true);
     ensureSortOrder(db, true);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
     render();
+    syncLagerOS(db.products);
   } else if (db.products && db.products.length > 0) {
     // Lokale Daten vorhanden — in die Cloud hochladen
     syncToSupabase(db);
+    syncLagerOS(db.products);
   }
 })();
 
