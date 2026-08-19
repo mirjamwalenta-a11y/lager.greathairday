@@ -884,11 +884,57 @@ async function blSpeichern() {
 function blSchnellVormerken(produktId, zone) {
   const p = db.products.find(x => x.id === produktId);
   if (!p) return;
-  // Vormerkliste laden falls noch nicht
-  if (blItems.length === 0 && document.getElementById('tab-bestellung').classList.contains('active')) {
-    // schon geladen
-  }
-  blHinzufuegen(p.name, 1, p.id, zone, p.unit || 'Stk.', null);
+
+  // Mini-Popup: altes entfernen falls offen
+  const alt = document.getElementById('blMiniPopup');
+  if (alt) alt.remove();
+  if (alt && alt.dataset.pid === produktId) return; // toggle
+
+  const btn = event.currentTarget;
+  const popup = document.createElement('div');
+  popup.id = 'blMiniPopup';
+  popup.dataset.pid = produktId;
+  popup.style.cssText = 'position:fixed;z-index:900;background:#fff;border:1.5px solid #C9A84C;border-radius:10px;padding:10px 12px;box-shadow:0 4px 20px rgba(0,0,0,.18);display:flex;align-items:center;gap:8px;font-size:13px;';
+
+  // Position unter dem Button
+  const rect = btn.getBoundingClientRect();
+  popup.style.top = (rect.bottom + 6) + 'px';
+  popup.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px';
+
+  popup.innerHTML = `
+    <span style="font-weight:600;max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(p.name)}">${esc(p.name.length > 18 ? p.name.slice(0,18)+'…' : p.name)}</span>
+    <input id="blMiniMenge" type="number" min="1" value="1" style="width:52px;padding:4px 6px;border:1.5px solid #C9A84C;border-radius:6px;font-size:13px;font-weight:700;text-align:center">
+    <span style="color:#aaa;font-size:11px">${esc(p.unit||'Stk.')}</span>
+    <button onclick="blMiniSpeichern('${produktId}','${zone}')" style="background:#C9A84C;color:#1A1A2E;border:none;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer">✓</button>
+    <button onclick="document.getElementById('blMiniPopup')?.remove()" style="background:none;border:none;cursor:pointer;color:#aaa;font-size:16px;line-height:1">×</button>
+  `;
+  document.body.appendChild(popup);
+
+  // Fokus auf Mengenfeld
+  setTimeout(() => {
+    const inp = document.getElementById('blMiniMenge');
+    if (inp) { inp.focus(); inp.select(); }
+  }, 50);
+
+  // Enter = Speichern
+  popup.querySelector('#blMiniMenge').addEventListener('keydown', e => {
+    if (e.key === 'Enter') blMiniSpeichern(produktId, zone);
+    if (e.key === 'Escape') popup.remove();
+  });
+
+  // Außerhalb tippen = schließen
+  setTimeout(() => {
+    document.addEventListener('click', function handler(e) {
+      if (!popup.contains(e.target)) { popup.remove(); document.removeEventListener('click', handler); }
+    });
+  }, 100);
+}
+
+function blMiniSpeichern(produktId, zone) {
+  const p = db.products.find(x => x.id === produktId);
+  const menge = parseInt(document.getElementById('blMiniMenge')?.value) || 1;
+  document.getElementById('blMiniPopup')?.remove();
+  if (p) blHinzufuegen(p.name, menge, p.id, zone, p.unit || 'Stk.', null);
 }
 
 async function syncBestellungOS() {
