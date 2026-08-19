@@ -223,7 +223,7 @@
   .inline-num:focus { outline: none; border-color: var(--gold); background: #fff; }
 
   /* DRAG & DROP */
-  .product-row { cursor: grab; }
+  .product-row { cursor: default; }
   .product-row.dragging { opacity: .4; cursor: grabbing; }
   .product-row.drag-over { border: 2px dashed var(--gold); background: #FFFBF0; }
 
@@ -387,6 +387,9 @@
         <button class="btn btn-primary btn-sm" onclick="printOrder()">🖨 Drucken</button>
       </div>
     </div>
+
+    <!-- ── BESTELL-VORMERKLISTE ── -->
+    <div id="blContainer" class="no-print"></div>
 
     <div class="order-filter no-print">
       <button class="filter-chip active" onclick="setOrderFilter('alle',this)">Alle</button>
@@ -639,6 +642,43 @@
   </div>
 </div>
 
+<!-- BESTELL-VORMERKLISTE HINZUFÜGEN -->
+<div class="modal-backdrop" id="modalBlHinzufuegen">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-head">
+      <h3>🛍 Artikel vormerken</h3>
+      <button class="modal-close" onclick="closeModal('modalBlHinzufuegen')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="blProduktId">
+      <input type="hidden" id="blStandort">
+      <div class="field">
+        <label>Produkt *</label>
+        <input type="text" id="blProdName" list="blProdList" placeholder="Name eingeben oder aus Liste wählen…" oninput="blProdSelected()" autocomplete="off">
+        <datalist id="blProdList"></datalist>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Menge</label>
+          <input type="number" id="blMenge" min="1" value="1">
+        </div>
+        <div class="field">
+          <label>Einheit</label>
+          <input type="text" id="blEinheit" value="Stk." placeholder="Stk.">
+        </div>
+      </div>
+      <div class="field">
+        <label>Notiz (optional)</label>
+        <input type="text" id="blNotiz" placeholder="z. B. beim nächsten L'Oréal-Termin">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalBlHinzufuegen')">Abbrechen</button>
+      <button class="btn btn-primary" onclick="blSpeichern()">Vormerken</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -648,10 +688,245 @@
 // ═══════════════════════════════════════
 const STORAGE_KEY = 'lager_agreathaairday_v10';
 
-// ── SUPABASE ──
+// ── SUPABASE (Lager-Daten & OS-Sync) ──
 const SUPA_URL = 'https://lpuxvvfrrcnbuzafscyk.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxwdXh2dmZycmNuYnV6YWZzY3lrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2ODIxNDcsImV4cCI6MjEwMDI1ODE0N30.6VZUmmXj_x3Q8J55s_tbOHcW5-U5OXllGoEBhypaVfI';
 const SUPA_TABLE = 'lager_data';
+
+// ── SUPABASE (Bestell-Vormerkliste) ──
+const BL_URL  = 'https://wrxlaltgtgkdomklgrlj.supabase.co';
+const BL_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyeGxhbHRndGdrZG9ta2xncmxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyNDYwMzYsImV4cCI6MjA5OTgyMjAzNn0.Bw8ch-EJb_cLYTwxHdpjUJWgoCjje3Jc32pB0yiBS8g';
+const BL_TABLE = 'lager_bestellliste';
+const BH_TABLE = 'lager_bestellhistorie';
+
+async function blFetch(path, opts = {}) {
+  const r = await fetch(`${BL_URL}/rest/v1/${path}`, {
+    headers: { "apikey": BL_KEY, "Authorization": `Bearer ${BL_KEY}`, "Content-Type": "application/json", "Prefer": opts.prefer || "return=representation", ...opts.headers },
+    ...opts
+  });
+  const t = await r.text();
+  if (!r.ok) throw new Error(t);
+  return t ? JSON.parse(t) : null;
+}
+
+// Bestell-Vormerkliste State
+let blItems = [];
+
+async function blLaden() {
+  try {
+    const data = await blFetch(`${BL_TABLE}?status=eq.offen&order=aufgenommen_am.asc`);
+    blItems = data || [];
+    renderVormerkliste();
+    syncBestellungOS();
+  } catch(e) { console.warn('Vormerkliste laden:', e.message); }
+}
+
+async function blHinzufuegen(produkt_name, menge, produkt_id, standort, einheit, notiz) {
+  try {
+    // Prüfen ob bereits vorhanden
+    const existing = blItems.find(i => i.produkt_id && i.produkt_id === produkt_id);
+    if (existing) {
+      // Menge addieren
+      const neueMenge = existing.menge + parseInt(menge);
+      await blFetch(`${BL_TABLE}?id=eq.${existing.id}`, {
+        method: 'PATCH', prefer: 'return=minimal',
+        body: JSON.stringify({ menge: neueMenge, geaendert_am: new Date().toISOString() })
+      });
+      existing.menge = neueMenge;
+    } else {
+      const neu = await blFetch(BL_TABLE, {
+        method: 'POST',
+        body: JSON.stringify({ produkt_name, menge: parseInt(menge), produkt_id: produkt_id||null, standort: standort||null, einheit: einheit||'Stk.', notiz: notiz||null })
+      });
+      if (neu && neu[0]) blItems.push(neu[0]);
+    }
+    renderVormerkliste();
+    syncBestellungOS();
+    toast(`✓ ${produkt_name} vorgemerkt`, 'success');
+  } catch(e) { toast('Fehler: ' + e.message, 'error'); }
+}
+
+async function blMengeAendern(id, delta) {
+  const item = blItems.find(i => i.id === id);
+  if (!item) return;
+  const neueMenge = Math.max(1, item.menge + delta);
+  try {
+    await blFetch(`${BL_TABLE}?id=eq.${id}`, {
+      method: 'PATCH', prefer: 'return=minimal',
+      body: JSON.stringify({ menge: neueMenge, geaendert_am: new Date().toISOString() })
+    });
+    item.menge = neueMenge;
+    renderVormerkliste();
+  } catch(e) { console.warn('Menge ändern:', e.message); }
+}
+
+async function blLoeschen(id) {
+  try {
+    await blFetch(`${BL_TABLE}?id=eq.${id}`, { method: 'DELETE', prefer: '' });
+    blItems = blItems.filter(i => i.id !== id);
+    renderVormerkliste();
+    syncBestellungOS();
+  } catch(e) { console.warn('Löschen:', e.message); }
+}
+
+async function blBestellungAbschliessen() {
+  if (blItems.length === 0) return;
+  const ausgewaehlt = blItems.filter(i => document.getElementById('bl_check_' + i.id)?.checked);
+  const zuBestellen = ausgewaehlt.length > 0 ? ausgewaehlt : blItems;
+  if (!confirm(`${zuBestellen.length} Artikel als bestellt markieren?`)) return;
+  try {
+    const ids = zuBestellen.map(i => i.id);
+    const gesamtMenge = zuBestellen.reduce((s, i) => s + i.menge, 0);
+    // Artikel als bestellt markieren
+    for (const id of ids) {
+      await blFetch(`${BL_TABLE}?id=eq.${id}`, {
+        method: 'PATCH', prefer: 'return=minimal',
+        body: JSON.stringify({ status: 'bestellt', bestellt_am: new Date().toISOString() })
+      });
+    }
+    // Historie speichern
+    await blFetch(BH_TABLE, {
+      method: 'POST', prefer: 'return=minimal',
+      body: JSON.stringify({
+        anzahl_artikel: zuBestellen.length,
+        gesamt_menge: gesamtMenge,
+        artikel_json: zuBestellen.map(i => ({ name: i.produkt_name, menge: i.menge, einheit: i.einheit }))
+      })
+    });
+    blItems = blItems.filter(i => !ids.includes(i.id));
+    renderVormerkliste();
+    syncBestellungOS();
+    toast(`✓ ${zuBestellen.length} Artikel bestellt`, 'success');
+  } catch(e) { toast('Fehler: ' + e.message, 'error'); }
+}
+
+function renderVormerkliste() {
+  const container = document.getElementById('blContainer');
+  if (!container) return;
+  const anzahl = blItems.length;
+  const badge = anzahl > 0 ? `<span style="background:var(--gold);color:var(--deep);font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px">${anzahl}</span>` : '';
+  container.innerHTML = `
+    <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:24px">
+      <div style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);background:var(--bg)">
+        <div style="font-size:15px;font-weight:700;display:flex;align-items:center">
+          🛍 Offene Vormerkliste${badge}
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-outline btn-sm no-print" onclick="openBlHinzufuegen()">+ Vormerken</button>
+          ${anzahl>0?`<button class="btn btn-primary btn-sm no-print" onclick="blBestellungAbschliessen()">✓ Bestellung abschließen</button>`:''}
+        </div>
+      </div>
+      ${anzahl === 0
+        ? `<div style="padding:20px 18px;color:var(--mid);font-size:13px">Noch nichts vorgemerkt. Artikel direkt aus der Lager-Liste vormerken oder hier hinzufügen.</div>`
+        : `<div style="padding:10px 0">
+            ${blItems.map(i => `
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 18px;border-bottom:1px solid var(--border)">
+                <input type="checkbox" id="bl_check_${i.id}" style="accent-color:var(--gold);width:15px;height:15px;flex-shrink:0">
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.produkt_name)}</div>
+                  ${i.standort?`<div style="font-size:11px;color:var(--mid)">${i.standort==='geschaeft'?'Geschäft':i.standort==='keller'?'Keller':i.standort}</div>`:''}
+                </div>
+                <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+                  <button onclick="blMengeAendern('${i.id}',-1)" style="width:22px;height:22px;border:1px solid var(--border);border-radius:4px;background:var(--bg);cursor:pointer;font-size:14px;line-height:1">−</button>
+                  <span style="min-width:28px;text-align:center;font-size:13px;font-weight:700">${i.menge}</span>
+                  <button onclick="blMengeAendern('${i.id}',1)" style="width:22px;height:22px;border:1px solid var(--border);border-radius:4px;background:var(--bg);cursor:pointer;font-size:14px;line-height:1">+</button>
+                  <span style="font-size:11px;color:var(--mid);margin-left:2px">${esc(i.einheit||'Stk.')}</span>
+                </div>
+                <button onclick="blLoeschen('${i.id}')" style="background:none;border:none;cursor:pointer;color:var(--mid);font-size:16px;padding:2px 4px;flex-shrink:0" title="Entfernen">✕</button>
+              </div>
+            `).join('')}
+          </div>`
+      }
+    </div>
+  `;
+}
+
+function openBlHinzufuegen() {
+  const modal = document.getElementById('modalBlHinzufuegen');
+  if (modal) {
+    document.getElementById('blProdName').value = '';
+    document.getElementById('blMenge').value = '1';
+    document.getElementById('blNotiz').value = '';
+    document.getElementById('blProduktId').value = '';
+    document.getElementById('blStandort').value = '';
+    document.getElementById('blEinheit').value = 'Stk.';
+    // Autocomplete vorbereiten
+    const datalist = document.getElementById('blProdList');
+    if (datalist) {
+      datalist.innerHTML = db.products.map(p => `<option value="${esc(p.name)}" data-id="${p.id}" data-standort="${p.zones[0]||''}" data-einheit="${p.unit||'Stk.'}">`).join('');
+    }
+    modal.classList.add('open');
+  }
+}
+
+function blProdSelected() {
+  const name = document.getElementById('blProdName').value;
+  const prod = db.products.find(p => p.name === name);
+  if (prod) {
+    document.getElementById('blProduktId').value = prod.id;
+    document.getElementById('blStandort').value = prod.zones[0] || '';
+    document.getElementById('blEinheit').value = prod.unit || 'Stk.';
+  }
+}
+
+async function blSpeichern() {
+  const name = document.getElementById('blProdName').value.trim();
+  const menge = parseInt(document.getElementById('blMenge').value) || 1;
+  const notiz = document.getElementById('blNotiz').value.trim();
+  const prodId = document.getElementById('blProduktId').value.trim();
+  const standort = document.getElementById('blStandort').value.trim();
+  const einheit = document.getElementById('blEinheit').value.trim() || 'Stk.';
+  if (!name) { alert('Produktname fehlt'); return; }
+  document.getElementById('modalBlHinzufuegen').classList.remove('open');
+  await blHinzufuegen(name, menge, prodId||null, standort||null, einheit, notiz||null);
+}
+
+function blSchnellVormerken(produktId, zone) {
+  const p = db.products.find(x => x.id === produktId);
+  if (!p) return;
+  // Vormerkliste laden falls noch nicht
+  if (blItems.length === 0 && document.getElementById('tab-bestellung').classList.contains('active')) {
+    // schon geladen
+  }
+  blHinzufuegen(p.name, 1, p.id, zone, p.unit || 'Stk.', null);
+}
+
+async function syncBestellungOS() {
+  // GHD OS V1: Bestellaufgabe erzeugen/aktualisieren
+  try {
+    const GHD_URL = 'https://lpuxvvfrrcnbuzafscyk.supabase.co';
+    const GHD_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxwdXh2dmZycmNuYnV6YWZzY3lrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2ODIxNDcsImV4cCI6MjEwMDI1ODE0N30.6VZUmmXj_x3Q8J55s_tbOHcW5-U5OXllGoEBhypaVfI';
+    const h = { "apikey": GHD_KEY, "Authorization": `Bearer ${GHD_KEY}`, "Content-Type": "application/json" };
+    const SIGNAL_KEY = 'lager-bestellliste-offen';
+    if (blItems.length === 0) {
+      await fetch(`${GHD_URL}/rest/v1/ghd_aufgaben?signal_key=eq.${SIGNAL_KEY}&status=neq.erledigt`, {
+        method: 'PATCH', headers: { ...h, "Prefer": "return=minimal" },
+        body: JSON.stringify({ status: 'erledigt', erledigt_am: new Date().toISOString(), erledigt_von: 'system' })
+      });
+      return;
+    }
+    const titel = blItems.length === 1 ? `1 Artikel auf Vormerkliste – Bestellung vorbereiten` : `${blItems.length} Artikel auf Vormerkliste – Bestellung vorbereiten`;
+    const check = await fetch(`${GHD_URL}/rest/v1/ghd_aufgaben?signal_key=eq.${SIGNAL_KEY}&status=neq.erledigt&select=id`, { headers: h });
+    const existing = await check.json();
+    if (Array.isArray(existing) && existing.length > 0) {
+      await fetch(`${GHD_URL}/rest/v1/ghd_aufgaben?signal_key=eq.${SIGNAL_KEY}&status=neq.erledigt`, {
+        method: 'PATCH', headers: { ...h, "Prefer": "return=minimal" },
+        body: JSON.stringify({ titel })
+      });
+    } else {
+      await fetch(`${GHD_URL}/rest/v1/ghd_aufgaben`, {
+        method: 'POST', headers: { ...h, "Prefer": "return=minimal" },
+        body: JSON.stringify({
+          typ: 'bestellung', titel,
+          naechster_schritt: 'Lager-App öffnen → Vormerkliste prüfen → Bestellung aufgeben',
+          verantwortlich: 'Mirjam', faellig_am: null,
+          prioritaet: 'diese-woche', status: 'neu',
+          app_kontext: 'lager', signal_key: SIGNAL_KEY, erstellt_von: 'system'
+        })
+      });
+    }
+  } catch(e) { console.warn('Bestell-OS-Sync:', e.message); }
+}
 
 let syncStatus = 'lokal'; // 'lokal' | 'syncing' | 'synced' | 'error'
 
@@ -741,6 +1016,47 @@ function saveData(data) {
 let db = loadData();
 if (!db.categories) db.categories = DEFAULT_CATS;
 
+// Sicherstellen dass alle Produkte eine sortOrder haben
+function ensureSortOrder(data, save) {
+  if (!data || !data.products) return;
+  let changed = false;
+  data.products.forEach((p, i) => {
+    if (p.sortOrder === undefined || p.sortOrder === null) {
+      p.sortOrder = i * 10;
+      changed = true;
+    }
+  });
+  // Wenn Werte fehlten, sofort speichern damit sie beim nächsten Laden da sind
+  if (changed && save) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }
+}
+ensureSortOrder(db, true);
+
+// OS-Integration: Artikel unter Mindestbestand in os_aufgaben melden
+async function syncLagerOS(products) {
+  try {
+    const unterMindest = products.filter(p => {
+      if (!p.reorder_point || p.reorder_point <= 0) return false;
+      const gesamt = Object.values(p.stock || {}).reduce((s, v) => s + (v || 0), 0);
+      return gesamt <= p.reorder_point;
+    });
+    const headers = { "apikey": SUPA_KEY, "Authorization": `Bearer ${SUPA_KEY}`, "Content-Type": "application/json", "Prefer": "return=minimal" };
+    if (unterMindest.length === 0) {
+      await fetch(`${SUPA_URL}/rest/v1/os_aufgaben?bereich=eq.lager&status=eq.offen`, { method: "PATCH", headers, body: JSON.stringify({ status: "erledigt", erledigt_am: new Date().toISOString() }) });
+      return;
+    }
+    const titel = unterMindest.length === 1 ? "1 Artikel unter Mindestbestand" : `${unterMindest.length} Artikel unter Mindestbestand`;
+    const r = await fetch(`${SUPA_URL}/rest/v1/os_aufgaben?bereich=eq.lager&status=eq.offen&select=id`, { headers: { "apikey": SUPA_KEY, "Authorization": `Bearer ${SUPA_KEY}` } });
+    const existing = await r.json();
+    if (Array.isArray(existing) && existing.length > 0) {
+      await fetch(`${SUPA_URL}/rest/v1/os_aufgaben?bereich=eq.lager&status=eq.offen`, { method: "PATCH", headers, body: JSON.stringify({ titel }) });
+    } else {
+      await fetch(`${SUPA_URL}/rest/v1/os_aufgaben`, { method: "POST", headers, body: JSON.stringify({ bereich: "lager", titel, status: "offen", prioritaet: "orange", quelle: "app", app_link: "https://mirjamwalenta-a11y.github.io/lager.greathairday/" }) });
+    }
+  } catch(e) { console.warn("OS-Sync Lager fehlgeschlagen:", e.message); }
+}
+
 // Beim Start: Daten aus der Cloud laden
 (async () => {
   const cloud = await loadFromSupabase();
@@ -748,11 +1064,14 @@ if (!db.categories) db.categories = DEFAULT_CATS;
     // Cloud hat Daten — nehmen wir sie
     db = cloud;
     if (!db.categories) db.categories = DEFAULT_CATS;
+    ensureSortOrder(db, true);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
     render();
+    syncLagerOS(db.products);
   } else if (db.products && db.products.length > 0) {
     // Lokale Daten vorhanden — in die Cloud hochladen
     syncToSupabase(db);
+    syncLagerOS(db.products);
   }
 })();
 
@@ -814,10 +1133,7 @@ function renderZone(zone, products) {
       </div>
       <div class="subcat-body ${isOpen?'open':''}" id="${domId}">
         ${catProds.length
-          ? `<div class="product-list">${catProds.sort((a,b)=>{
-              const aL=(a.stock[zone]||0)<=a.reorder_point, bL=(b.stock[zone]||0)<=b.reorder_point;
-              return aL!==bL?(aL?-1:1):a.name.localeCompare(b.name);
-            }).map(p=>productRowHTML(p,zone)).join('')}</div>`
+          ? `<div class="product-list">${catProds.sort((a,b)=>(a.sortOrder??9999)-(b.sortOrder??9999)).map(p=>productRowHTML(p,zone)).join('')}</div>`
           : `<div class="empty-state" style="padding:16px"><div class="icon-big" style="font-size:22px">📦</div>Noch keine Produkte in dieser Kategorie.</div>`
         }
       </div>
@@ -869,18 +1185,19 @@ function productRowHTML(p, zone) {
 
   return `
   <div class="product-row${isLow?' low-stock':''}"
-    draggable="true" data-id="${p.id}"
-    ondragstart="dragStart(event,'${p.id}')"
+    data-id="${p.id}"
     ondragover="dragOver(event)"
     ondragleave="dragLeave(event)"
     ondrop="dragDrop(event,'${p.id}')">
     <div class="pr-top">
       <input type="checkbox" class="pr-check" onchange="toggleSelect('${p.id}',this)" ${selectedIds.has(p.id)?'checked':''}>
-      <div style="flex:1">
+      <div style="flex:1;cursor:grab" draggable="true" ondragstart="dragStart(event,'${p.id}')">
         <div class="pr-name">${esc(p.name)}</div>
         ${p.unit ? `<div class="pr-cat">${esc(p.unit)}</div>` : ''}
       </div>
       <div class="pr-actions">
+        <button class="btn btn-outline btn-xs move-btn" data-id="${p.id}" data-zone="${zone}" data-dir="-1" title="Nach oben">▲</button>
+        <button class="btn btn-outline btn-xs move-btn" data-id="${p.id}" data-zone="${zone}" data-dir="1" title="Nach unten">▼</button>
         <button class="btn btn-outline btn-xs" onclick="openEditModal('${p.id}')">✏️</button>
         <button class="btn btn-outline btn-xs" onclick="openDeleteModal('${p.id}')">🗑</button>
       </div>
@@ -892,10 +1209,11 @@ function productRowHTML(p, zone) {
       ${isLow?'<span class="reorder-chip">Zu bestellen</span>':''}
       <span style="font-size:11px;color:var(--mid);display:flex;align-items:center;gap:4px">
         Min: <input type="number" class="inline-num" value="${p.reorder_point}" min="0"
-          onchange="saveMinBestand('${p.id}',this.value)" onclick="event.stopPropagation()">
+          oninput="saveMinBestand('${p.id}',this.value,this)" onclick="event.stopPropagation()" ondragstart="event.stopPropagation(); event.preventDefault()">
       </span>
       <button class="btn btn-outline btn-xs" onclick="openStockModal('${p.id}','${zone}')">± Bestand</button>
       ${hasOther?`<button class="btn btn-outline btn-xs" onclick="openTransferModal('${p.id}','${zone}')">⇄ → ${otherLabel}</button>`:''}
+      <button class="btn btn-outline btn-xs" onclick="blSchnellVormerken('${p.id}','${zone}')" title="Auf Bestellliste vormerken">🛍</button>
     </div>
     ${p.note?`<div style="font-size:11px;color:var(--mid);margin-top:7px;padding-top:6px;border-top:1px solid var(--border)">📝 ${esc(p.note)}</div>`:''}
   </div>`;
@@ -1320,7 +1638,7 @@ function switchTab(name) {
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('tab-'+name).classList.add('active');
   document.getElementById('tabBtn-'+name).classList.add('active');
-  if (name==='bestellung') renderOrderTable();
+  if (name==='bestellung') { renderOrderTable(); blLaden(); }
 }
 
 // ═══════════════════════════════════════
@@ -1548,12 +1866,40 @@ function bulkDelete() {
 // ═══════════════════════════════════════
 //  INLINE MINDESTBESTAND
 // ═══════════════════════════════════════
-function saveMinBestand(id, val) {
+function saveMinBestand(id, val, inputEl) {
   const p = db.products.find(x=>x.id===id);
   if (!p) return;
   p.reorder_point = parseInt(val)||0;
   saveData(db);
-  // Don't re-render to avoid losing focus — status updates on next render
+
+  // Update only the affected row's CSS classes and badges — no full re-render,
+  // so focus and scroll position are preserved, and the row stays in place.
+  p.zones.forEach(zone => {
+    const qty = p.stock[zone] ?? 0;
+    const isLow = qty <= p.reorder_point;
+    // Find the product-row that contains this input
+    const row = inputEl ? inputEl.closest('.product-row') : null;
+    if (!row) return;
+    row.classList.toggle('low-stock', isLow);
+    const badge = row.querySelector('.stock-badge');
+    if (badge) {
+      badge.classList.toggle('low', isLow);
+      badge.textContent = (isLow ? '⚠ ' : '✓ ') + qty + ' ' + (p.unit||'Stk.');
+    }
+    // Show/hide "Zu bestellen" chip
+    let chip = row.querySelector('.reorder-chip');
+    if (isLow && !chip) {
+      const meta = row.querySelector('.pr-meta');
+      if (meta) {
+        chip = document.createElement('span');
+        chip.className = 'reorder-chip';
+        chip.textContent = 'Zu bestellen';
+        badge.insertAdjacentElement('afterend', chip);
+      }
+    } else if (!isLow && chip) {
+      chip.remove();
+    }
+  });
 }
 
 // ═══════════════════════════════════════
@@ -1586,12 +1932,15 @@ function dragDrop(event, targetId) {
   const toIdx   = db.products.findIndex(p=>p.id===targetId);
   if (fromIdx < 0 || toIdx < 0) { dragId = null; return; }
 
-  // Move to same subcategory/zones as drop target
+  // Only adopt the target's subcategory/zones if the dragged product is in a different subcategory.
+  // This allows reordering within the same subcategory without category reassignment.
   const target = db.products[toIdx];
   const dragged = db.products[fromIdx];
-  dragged.subcatId = target.subcatId;
-  dragged.zones = [...target.zones];
-  target.zones.forEach(z => { if ((dragged.stock||{})[z]===undefined) { if(!dragged.stock) dragged.stock={}; dragged.stock[z]=0; } });
+  if (dragged.subcatId !== target.subcatId) {
+    dragged.subcatId = target.subcatId;
+    dragged.zones = [...target.zones];
+    target.zones.forEach(z => { if ((dragged.stock||{})[z]===undefined) { if(!dragged.stock) dragged.stock={}; dragged.stock[z]=0; } });
+  }
 
   const [moved] = db.products.splice(fromIdx, 1);
   const newTo = db.products.findIndex(p=>p.id===targetId);
@@ -1603,9 +1952,49 @@ function dragDrop(event, targetId) {
   toast('Produkt verschoben ✓', 'success');
 }
 
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.move-btn');
+  if (!btn) return;
+  e.stopPropagation();
+  const id = btn.dataset.id;
+  const zone = btn.dataset.zone;
+  const dir = parseInt(btn.dataset.dir);
+  moveProduct(id, zone, dir);
+});
+
 document.addEventListener('dragend', () => {
   document.querySelectorAll('.product-row').forEach(r => r.classList.remove('dragging','drag-over'));
 });
+
+
+// ═══════════════════════════════════════
+//  MOVE PRODUCT UP / DOWN
+// ═══════════════════════════════════════
+function moveProduct(id, zone, direction) {
+  const p = db.products.find(x => x.id === id);
+  if (!p) return;
+
+  // Sicherstellen dass alle Produkte eine Sortierzahl haben
+  db.products.forEach((x, i) => { if (x.sortOrder === undefined) x.sortOrder = i * 10; });
+
+  // Gleiche Gruppe = gleiche Zone UND gleiche Subkategorie
+  const group = db.products
+    .filter(x => x.zones && x.zones.includes(zone) && x.subcatId === p.subcatId)
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+
+  const idxInGroup = group.findIndex(x => x.id === id);
+  const newIdxInGroup = idxInGroup + direction;
+  if (idxInGroup < 0 || newIdxInGroup < 0 || newIdxInGroup >= group.length) return;
+
+  // Sortierzahlen tauschen
+  const orderA = group[idxInGroup].sortOrder ?? 0;
+  const orderB = group[newIdxInGroup].sortOrder ?? 0;
+  group[idxInGroup].sortOrder = orderB;
+  group[newIdxInGroup].sortOrder = orderA;
+
+  saveData(db);
+  render();
+}
 
 render();
 </script>
