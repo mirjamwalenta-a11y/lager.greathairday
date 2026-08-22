@@ -1765,6 +1765,8 @@ function switchTab(name) {
   document.getElementById('tab-'+name).classList.add('active');
   document.getElementById('tabBtn-'+name).classList.add('active');
   if (name==='bestellung') { renderOrderTable(); blLaden(); }
+  if (name==='notiz') { setTimeout(lagerNotizRender, 50); }
+  if (name==='inventur') { setTimeout(invRender, 50); }
 }
 
 // ═══════════════════════════════════════
@@ -2352,12 +2354,7 @@ function invExportExcel() {
 
 // Inventur rendern wenn Tab aktiv
 // Nach switchTab: Notiz + Inventur rendern
-const _origSwitchTab = window.switchTab;
-window.switchTab = function(id) {
-  _origSwitchTab(id);
-  if (id === 'notiz') lagerNotizRender();
-  if (id === 'inventur') invRender();
-};
+
 
 </script>
 </body>
