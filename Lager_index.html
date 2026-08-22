@@ -715,49 +715,64 @@
       <div style="padding:14px 18px;border-bottom:1px solid var(--border);background:var(--bg);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
         <div style="font-size:15px;font-weight:700;">📋 Inventur</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button onclick="invNeu()" class="btn btn-outline btn-sm">+ Artikel</button>
-          <button onclick="invMikro()" id="inv-mikro-btn" class="btn btn-outline btn-sm">🎤 Diktieren</button>
+          <button onclick="invNeuGruppe()" class="btn btn-primary btn-sm">+ Gruppe</button>
           <button onclick="invExportExcel()" class="btn btn-outline btn-sm no-print">📥 Excel</button>
-          <button onclick="invReset()" class="btn btn-outline btn-sm red no-print">🗑 Leeren</button>
+          <button onclick="invReset()" class="btn btn-outline btn-sm no-print" style="color:#C0392B;border-color:#C0392B;">🗑 Leeren</button>
         </div>
       </div>
-
-      <!-- Mikro-Status -->
-      <div id="inv-mikro-status" style="display:none;padding:10px 18px;background:#FFF9EE;border-bottom:1px solid var(--border);font-size:13px;color:var(--gold-dark, #8a6a00);font-weight:600;">
-        🔴 Ich höre zu… (z.B. „Shampoo 12 von 20")
-      </div>
-
-      <!-- Eingabe -->
-      <div style="padding:12px 18px;display:flex;gap:8px;flex-wrap:wrap;">
-        <input id="inv-input-name" placeholder="Artikelname" type="text"
-          style="flex:2;min-width:120px;border:1px solid var(--border);border-radius:10px;padding:9px 12px;font-size:14px;outline:none;background:var(--bg);">
-        <input id="inv-input-ist" placeholder="Ist" type="number" min="0"
-          style="flex:1;min-width:60px;border:1px solid var(--border);border-radius:10px;padding:9px 12px;font-size:14px;outline:none;background:var(--bg);">
-        <input id="inv-input-soll" placeholder="Soll" type="number" min="0"
-          style="flex:1;min-width:60px;border:1px solid var(--border);border-radius:10px;padding:9px 12px;font-size:14px;outline:none;background:var(--bg);">
-        <button onclick="invAdd()" class="btn btn-primary btn-sm" style="flex-shrink:0;">+</button>
-      </div>
     </div>
 
-    <!-- Tabelle -->
-    <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;overflow:hidden;">
-      <table style="width:100%;border-collapse:collapse;">
-        <thead>
-          <tr style="background:var(--bg);">
-            <th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--mid);text-transform:uppercase;letter-spacing:.06em;">Artikel</th>
-            <th style="padding:10px 14px;text-align:center;font-size:11px;font-weight:700;color:var(--mid);text-transform:uppercase;">Ist</th>
-            <th style="padding:10px 14px;text-align:center;font-size:11px;font-weight:700;color:var(--mid);text-transform:uppercase;">Soll</th>
-            <th style="padding:10px 14px;text-align:center;font-size:11px;font-weight:700;color:var(--mid);text-transform:uppercase;">Diff</th>
-            <th style="padding:10px 14px;text-align:center;font-size:11px;font-weight:700;color:var(--mid);text-transform:uppercase;" class="no-print"></th>
-          </tr>
-        </thead>
-        <tbody id="inv-tbody">
-          <tr><td colspan="5" style="padding:20px;text-align:center;color:var(--mid);font-size:13px;">Noch keine Einträge.</td></tr>
-        </tbody>
-      </table>
-      <div id="inv-summary" style="display:none;padding:12px 18px;border-top:1px solid var(--border);background:var(--bg);font-size:13px;font-weight:600;"></div>
+    <!-- Gruppen-Liste -->
+    <div id="inv-list"></div>
+
+    <!-- Gesamtsumme -->
+    <div id="inv-total" style="display:none;background:var(--surface);border:1.5px solid var(--gold,#8a6a00);border-radius:14px;padding:16px 18px;margin-top:8px;">
+      <div style="font-size:13px;font-weight:700;color:var(--mid);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">Gesamtwert Inventur</div>
+      <div id="inv-total-rows"></div>
     </div>
 
+  </div>
+</div>
+
+<!-- INVENTUR MODAL -->
+<div id="inv-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999;align-items:flex-end;">
+  <div style="background:#fff;border-radius:20px 20px 0 0;padding:24px;width:100%;max-height:90vh;overflow-y:auto;">
+    <div style="font-size:16px;font-weight:700;margin-bottom:16px;" id="inv-modal-title">Gruppe hinzufügen</div>
+    <input id="inv-m-name" placeholder="Gruppenname (z.B. INOA Farben)" type="text"
+      style="width:100%;border:1px solid #E5E5EA;border-radius:10px;padding:10px 12px;font-size:15px;outline:none;margin-bottom:10px;box-sizing:border-box;">
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <div style="flex:1;">
+        <div style="font-size:11px;color:#8E8E93;margin-bottom:4px;">ANZAHL</div>
+        <input id="inv-m-anzahl" placeholder="0" type="number" min="0"
+          style="width:100%;border:1px solid #E5E5EA;border-radius:10px;padding:10px 12px;font-size:15px;outline:none;box-sizing:border-box;">
+      </div>
+      <div style="flex:1;">
+        <div style="font-size:11px;color:#8E8E93;margin-bottom:4px;">EINZELPREIS €</div>
+        <input id="inv-m-preis" placeholder="0.00" type="number" min="0" step="0.01"
+          style="width:100%;border:1px solid #E5E5EA;border-radius:10px;padding:10px 12px;font-size:15px;outline:none;box-sizing:border-box;">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:16px;">
+      <div style="flex:1;">
+        <div style="font-size:11px;color:#8E8E93;margin-bottom:4px;">RABATT %</div>
+        <input id="inv-m-rabatt" placeholder="0" type="number" min="0" max="100"
+          style="width:100%;border:1px solid #E5E5EA;border-radius:10px;padding:10px 12px;font-size:15px;outline:none;box-sizing:border-box;">
+      </div>
+      <div style="flex:1;">
+        <div style="font-size:11px;color:#8E8E93;margin-bottom:4px;">SKONTO %</div>
+        <input id="inv-m-skonto" placeholder="0" type="number" min="0" max="100"
+          style="width:100%;border:1px solid #E5E5EA;border-radius:10px;padding:10px 12px;font-size:15px;outline:none;box-sizing:border-box;">
+      </div>
+      <div style="flex:1;">
+        <div style="font-size:11px;color:#8E8E93;margin-bottom:4px;">WEITERER % </div>
+        <input id="inv-m-extra" placeholder="0" type="number" min="0" max="100"
+          style="width:100%;border:1px solid #E5E5EA;border-radius:10px;padding:10px 12px;font-size:15px;outline:none;box-sizing:border-box;">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="invModalClose()" style="flex:1;background:#F2F2F7;border:none;border-radius:12px;padding:13px;font-size:15px;cursor:pointer;">Abbrechen</button>
+      <button onclick="invModalSave()" style="flex:2;background:#1C1C1E;color:#fff;border:none;border-radius:12px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;">Speichern</button>
+    </div>
   </div>
 </div>
 
@@ -1178,7 +1193,7 @@ async function syncLagerOS(products) {
     if (Array.isArray(existing) && existing.length > 0) {
       await fetch(`${SUPA_URL}/rest/v1/os_aufgaben?bereich=eq.lager&status=eq.offen`, { method: "PATCH", headers, body: JSON.stringify({ titel }) });
     } else {
-      await fetch(`${SUPA_URL}/rest/v1/os_aufgaben`, { method: "POST", headers, body: JSON.stringify({ bereich: "lager", titel, status: "offen", prioritaet: "orange", quelle: "app", app_link: "https://mirjamwalenta-a11y.github.io/lager.greathairday/Lager_index.html" }) });
+      await fetch(`${SUPA_URL}/rest/v1/os_aufgaben`, { method: "POST", headers, body: JSON.stringify({ bereich: "lager", titel, status: "offen", prioritaet: "orange", quelle: "app", app_link: "https://mirjamwalenta-a11y.github.io/lager.greathairday/" }) });
     }
   } catch(e) { console.warn("OS-Sync Lager fehlgeschlagen:", e.message); }
 }
@@ -2209,140 +2224,141 @@ function lagerNotizMikro() {
 
 
 // ── INVENTUR ──
-var invItems = JSON.parse(localStorage.getItem('lager-inventur') || '[]');
+var invGruppen = JSON.parse(localStorage.getItem('lager-inventur-v2') || '[]');
+var invEditIdx = -1;
 
 function invSave() {
-  localStorage.setItem('lager-inventur', JSON.stringify(invItems));
+  localStorage.setItem('lager-inventur-v2', JSON.stringify(invGruppen));
+}
+
+function invCalc(g) {
+  const brutto = (parseFloat(g.anzahl)||0) * (parseFloat(g.preis)||0);
+  const nachRabatt = brutto * (1 - (parseFloat(g.rabatt)||0)/100);
+  const nachSkonto = nachRabatt * (1 - (parseFloat(g.skonto)||0)/100);
+  const final = nachSkonto * (1 - (parseFloat(g.extra)||0)/100);
+  return { brutto, nachRabatt, nachSkonto, final };
 }
 
 function invRender() {
-  const tbody = document.getElementById('inv-tbody');
-  const summary = document.getElementById('inv-summary');
-  if (!tbody) return;
+  const list = document.getElementById('inv-list');
+  const total = document.getElementById('inv-total');
+  const totalRows = document.getElementById('inv-total-rows');
+  if (!list) return;
 
-  if (invItems.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--mid);font-size:13px;">Noch keine Einträge.</td></tr>';
-    if (summary) summary.style.display = 'none';
+  if (invGruppen.length === 0) {
+    list.innerHTML = '<div style="text-align:center;padding:32px;color:var(--mid);font-size:14px;">Noch keine Gruppen.<br>Tippe auf \"+ Gruppe\" um zu starten.</div>';
+    if (total) total.style.display = 'none';
     return;
   }
 
-  tbody.innerHTML = invItems.map((it, i) => {
-    const diff = (it.ist !== '' && it.soll !== '') ? (Number(it.ist) - Number(it.soll)) : '';
-    const diffColor = diff === '' ? '' : diff < 0 ? 'color:#C0392B;font-weight:700;' : diff > 0 ? 'color:#27AE60;font-weight:700;' : 'color:var(--mid);';
-    const diffText = diff === '' ? '–' : (diff > 0 ? '+' + diff : diff);
-    return `<tr style="border-bottom:1px solid var(--border);">
-      <td style="padding:10px 14px;font-size:14px;">${it.name}</td>
-      <td style="padding:10px 14px;text-align:center;">
-        <input type="number" value="${it.ist}" min="0" onchange="invUpdateIst(${i},this.value)"
-          style="width:56px;border:1px solid var(--border);border-radius:8px;padding:4px 6px;text-align:center;font-size:14px;background:var(--bg);">
-      </td>
-      <td style="padding:10px 14px;text-align:center;">
-        <input type="number" value="${it.soll}" min="0" onchange="invUpdateSoll(${i},this.value)"
-          style="width:56px;border:1px solid var(--border);border-radius:8px;padding:4px 6px;text-align:center;font-size:14px;background:var(--bg);">
-      </td>
-      <td style="padding:10px 14px;text-align:center;${diffColor}">${diffText}</td>
-      <td style="padding:10px 14px;text-align:center;" class="no-print">
-        <button onclick="invDelete(${i})" style="background:none;border:none;font-size:16px;cursor:pointer;color:#C0392B;">×</button>
-      </td>
-    </tr>`;
+  let gesamtBrutto = 0, gesamtFinal = 0;
+
+  list.innerHTML = invGruppen.map((g, i) => {
+    const c = invCalc(g);
+    gesamtBrutto += c.brutto;
+    gesamtFinal += c.final;
+    const rabattInfo = [
+      g.rabatt ? '-'+g.rabatt+'% Rabatt' : '',
+      g.skonto ? '-'+g.skonto+'% Skonto' : '',
+      g.extra  ? '-'+g.extra+'% Extra' : ''
+    ].filter(Boolean).join(' · ');
+
+    return '<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;margin-bottom:10px;overflow:hidden;">'
+      + '<div style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;">'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="font-size:15px;font-weight:700;">' + g.name + '</div>'
+      + '<div style="font-size:12px;color:var(--mid);margin-top:2px;">'
+      + (g.anzahl||0) + ' Stk. × €' + parseFloat(g.preis||0).toFixed(2)
+      + (rabattInfo ? ' · ' + rabattInfo : '')
+      + '</div></div>'
+      + '<div style="text-align:right;flex-shrink:0;">'
+      + '<div style="font-size:16px;font-weight:700;color:var(--gold,#8a6a00);">€' + c.final.toFixed(2) + '</div>'
+      + (c.brutto !== c.final ? '<div style="font-size:11px;color:var(--mid);text-decoration:line-through;">€' + c.brutto.toFixed(2) + '</div>' : '')
+      + '</div>'
+      + '<div style="display:flex;gap:6px;flex-shrink:0;">'
+      + '<button onclick="invEdit(' + i + ')" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:14px;">✏️</button>'
+      + '<button onclick="invDelete(' + i + ')" style="background:#FFF0EE;border:1px solid #FFCCC9;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:14px;">×</button>'
+      + '</div></div></div>';
   }).join('');
 
-  // Summary
-  const mitSoll = invItems.filter(i => i.ist !== '' && i.soll !== '');
-  const fehlend = mitSoll.filter(i => Number(i.ist) < Number(i.soll)).length;
-  const ok = mitSoll.filter(i => Number(i.ist) >= Number(i.soll)).length;
-  if (summary) {
-    summary.style.display = 'block';
-    summary.innerHTML = `${invItems.length} Artikel · <span style="color:#C0392B;">${fehlend} unter Soll</span> · <span style="color:#27AE60;">${ok} ok</span>`;
+  if (total && totalRows) {
+    total.style.display = 'block';
+    totalRows.innerHTML = '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--mid);margin-bottom:6px;"><span>Bruttowert gesamt</span><span>€' + gesamtBrutto.toFixed(2) + '</span></div>'
+      + '<div style="display:flex;justify-content:space-between;font-size:16px;font-weight:700;border-top:1px solid var(--border);padding-top:8px;margin-top:4px;"><span>Nettowert nach Abzügen</span><span style="color:var(--gold,#8a6a00);">€' + gesamtFinal.toFixed(2) + '</span></div>';
   }
 }
 
-function invAdd() {
-  const name = document.getElementById('inv-input-name');
-  const ist = document.getElementById('inv-input-ist');
-  const soll = document.getElementById('inv-input-soll');
-  if (!name || !name.value.trim()) return;
-  invItems.push({ name: name.value.trim(), ist: ist.value || '', soll: soll.value || '' });
-  invSave();
-  name.value = ''; ist.value = ''; soll.value = '';
-  invRender();
+function invNeuGruppe() {
+  invEditIdx = -1;
+  document.getElementById('inv-modal-title').textContent = 'Gruppe hinzufügen';
+  document.getElementById('inv-m-name').value = '';
+  document.getElementById('inv-m-anzahl').value = '';
+  document.getElementById('inv-m-preis').value = '';
+  document.getElementById('inv-m-rabatt').value = '';
+  document.getElementById('inv-m-skonto').value = '';
+  document.getElementById('inv-m-extra').value = '';
+  document.getElementById('inv-modal').style.display = 'flex';
+  setTimeout(function(){ document.getElementById('inv-m-name').focus(); }, 100);
 }
 
-function invNeu() {
-  document.getElementById('inv-input-name').focus();
+function invEdit(i) {
+  invEditIdx = i;
+  const g = invGruppen[i];
+  document.getElementById('inv-modal-title').textContent = 'Gruppe bearbeiten';
+  document.getElementById('inv-m-name').value = g.name || '';
+  document.getElementById('inv-m-anzahl').value = g.anzahl || '';
+  document.getElementById('inv-m-preis').value = g.preis || '';
+  document.getElementById('inv-m-rabatt').value = g.rabatt || '';
+  document.getElementById('inv-m-skonto').value = g.skonto || '';
+  document.getElementById('inv-m-extra').value = g.extra || '';
+  document.getElementById('inv-modal').style.display = 'flex';
 }
 
-function invUpdateIst(i, val) {
-  invItems[i].ist = val;
-  invSave();
-  invRender();
+function invModalClose() {
+  document.getElementById('inv-modal').style.display = 'none';
 }
 
-function invUpdateSoll(i, val) {
-  invItems[i].soll = val;
+function invModalSave() {
+  const name = document.getElementById('inv-m-name').value.trim();
+  if (!name) { document.getElementById('inv-m-name').focus(); return; }
+  const g = {
+    name,
+    anzahl: document.getElementById('inv-m-anzahl').value,
+    preis:  document.getElementById('inv-m-preis').value,
+    rabatt: document.getElementById('inv-m-rabatt').value,
+    skonto: document.getElementById('inv-m-skonto').value,
+    extra:  document.getElementById('inv-m-extra').value,
+  };
+  if (invEditIdx >= 0) {
+    invGruppen[invEditIdx] = g;
+  } else {
+    invGruppen.push(g);
+  }
   invSave();
+  invModalClose();
   invRender();
 }
 
 function invDelete(i) {
-  invItems.splice(i, 1);
+  if (!confirm('Gruppe loeschen?')) return;
+  invGruppen.splice(i, 1);
   invSave();
   invRender();
 }
 
 function invReset() {
-  if (!confirm('Inventurliste wirklich leeren?')) return;
-  invItems = [];
+  if (!confirm('Gesamte Inventurliste leeren?')) return;
+  invGruppen = [];
   invSave();
   invRender();
 }
 
-function invMikro() {
-  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { alert('Mikrofon nicht verfügbar'); return; }
-  var btn = document.getElementById('inv-mikro-btn');
-  var status = document.getElementById('inv-mikro-status');
-  btn.textContent = '🔴 Stopp';
-  if (status) status.style.display = 'block';
-  var erk = new SR();
-  erk.lang = 'de-AT';
-  erk.continuous = false;
-  erk.interimResults = false;
-  erk.onresult = function(e) {
-    var text = e.results[0][0].transcript;
-    // Versuche "Name Ist von Soll" zu parsen z.B. "Shampoo 12 von 20"
-    var match = text.match(/^(.+?)\s+(\d+)\s+von\s+(\d+)$/i);
-    if (match) {
-      invItems.push({ name: match[1].trim(), ist: match[2], soll: match[3] });
-    } else {
-      // Nur Name + Ist z.B. "Shampoo 12"
-      var match2 = text.match(/^(.+?)\s+(\d+)$/i);
-      if (match2) {
-        invItems.push({ name: match2[1].trim(), ist: match2[2], soll: '' });
-      } else {
-        invItems.push({ name: text.trim(), ist: '', soll: '' });
-      }
-    }
-    invSave();
-    invRender();
-  };
-  erk.onend = function() {
-    btn.textContent = '🎤 Diktieren';
-    if (status) status.style.display = 'none';
-  };
-  erk.onerror = function() {
-    btn.textContent = '🎤 Diktieren';
-    if (status) status.style.display = 'none';
-  };
-  erk.start();
-}
-
 function invExportExcel() {
-  if (!window.XLSX) { alert('Excel-Export nicht verfügbar'); return; }
-  const data = [['Artikel', 'Ist', 'Soll', 'Differenz']];
-  invItems.forEach(it => {
-    const diff = (it.ist !== '' && it.soll !== '') ? Number(it.ist) - Number(it.soll) : '';
-    data.push([it.name, it.ist !== '' ? Number(it.ist) : '', it.soll !== '' ? Number(it.soll) : '', diff]);
+  if (!window.XLSX) { alert('Excel nicht verfuegbar'); return; }
+  const data = [['Gruppe','Anzahl','Einzelpreis EUR','Rabatt %','Skonto %','Weiterer %','Brutto EUR','Netto EUR']];
+  invGruppen.forEach(function(g) {
+    const c = invCalc(g);
+    data.push([g.name, g.anzahl||0, g.preis||0, g.rabatt||0, g.skonto||0, g.extra||0, c.brutto.toFixed(2), c.final.toFixed(2)]);
   });
   const ws = XLSX.utils.aoa_to_sheet(data);
   const wb = XLSX.utils.book_new();
@@ -2350,7 +2366,7 @@ function invExportExcel() {
   XLSX.writeFile(wb, 'Inventur_' + new Date().toISOString().slice(0,10) + '.xlsx');
 }
 
-// Inventur rendern wenn Tab aktiv
+// Nach switchTab: Notiz + Inventur rendern
 // Nach switchTab: Notiz + Inventur rendern
 const _origSwitchTab = window.switchTab;
 window.switchTab = function(id) {
