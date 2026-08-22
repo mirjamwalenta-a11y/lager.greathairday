@@ -1178,7 +1178,7 @@ async function syncLagerOS(products) {
     if (Array.isArray(existing) && existing.length > 0) {
       await fetch(`${SUPA_URL}/rest/v1/os_aufgaben?bereich=eq.lager&status=eq.offen`, { method: "PATCH", headers, body: JSON.stringify({ titel }) });
     } else {
-      await fetch(`${SUPA_URL}/rest/v1/os_aufgaben`, { method: "POST", headers, body: JSON.stringify({ bereich: "lager", titel, status: "offen", prioritaet: "orange", quelle: "app", app_link: "https://mirjamwalenta-a11y.github.io/lager.greathairday/" }) });
+      await fetch(`${SUPA_URL}/rest/v1/os_aufgaben`, { method: "POST", headers, body: JSON.stringify({ bereich: "lager", titel, status: "offen", prioritaet: "orange", quelle: "app", app_link: "https://mirjamwalenta-a11y.github.io/lager.greathairday/Lager_index.html" }) });
     }
   } catch(e) { console.warn("OS-Sync Lager fehlgeschlagen:", e.message); }
 }
@@ -1765,8 +1765,6 @@ function switchTab(name) {
   document.getElementById('tab-'+name).classList.add('active');
   document.getElementById('tabBtn-'+name).classList.add('active');
   if (name==='bestellung') { renderOrderTable(); blLaden(); }
-  if (name==='notiz') { setTimeout(lagerNotizRender, 50); }
-  if (name==='inventur') { setTimeout(invRender, 50); }
 }
 
 // ═══════════════════════════════════════
@@ -2354,7 +2352,12 @@ function invExportExcel() {
 
 // Inventur rendern wenn Tab aktiv
 // Nach switchTab: Notiz + Inventur rendern
-
+const _origSwitchTab = window.switchTab;
+window.switchTab = function(id) {
+  _origSwitchTab(id);
+  if (id === 'notiz') lagerNotizRender();
+  if (id === 'inventur') invRender();
+};
 
 </script>
 </body>
