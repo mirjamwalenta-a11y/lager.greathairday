@@ -1187,11 +1187,26 @@ const GHD_OS_URL = 'https://wrxlaltgtgkdomklgrlj.supabase.co';
 const GHD_OS_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyeGxhbHRndGdrZG9ta2xncmxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyNDYwMzYsImV4cCI6MjA5OTgyMjAzNn0.Bw8ch-EJb_cLYTwxHdpjUJWgoCjje3Jc32pB0yiBS8g';
 async function ghd_ereignisSchreiben(app, typ, titel, prioritaet, payload) {
   try {
-    await fetch(`${GHD_OS_URL}/rest/v1/ghd_ereignisse`, {
-      method: 'POST',
-      headers: { 'apikey': GHD_OS_KEY, 'Authorization': `Bearer ${GHD_OS_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ app, typ, titel, prioritaet, payload: payload || null })
-    });
+    const h = { 'apikey': GHD_OS_KEY, 'Authorization': `Bearer ${GHD_OS_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
+    // Prüfen ob schon ein ungelesenes Ereignis vom gleichen Typ existiert
+    const checkRes = await fetch(
+      `${GHD_OS_URL}/rest/v1/ghd_ereignisse?app=eq.${encodeURIComponent(app)}&typ=eq.${encodeURIComponent(typ)}&gelesen=eq.false&select=id`,
+      { headers: { 'apikey': GHD_OS_KEY, 'Authorization': `Bearer ${GHD_OS_KEY}` } }
+    );
+    const existing = await checkRes.json();
+    if (Array.isArray(existing) && existing.length > 0) {
+      // Vorhandenes Ereignis aktualisieren (Titel + Zeitstempel)
+      await fetch(
+        `${GHD_OS_URL}/rest/v1/ghd_ereignisse?app=eq.${encodeURIComponent(app)}&typ=eq.${encodeURIComponent(typ)}&gelesen=eq.false`,
+        { method: 'PATCH', headers: h, body: JSON.stringify({ titel, prioritaet, erstellt_am: new Date().toISOString(), payload: payload || null }) }
+      );
+    } else {
+      // Neues Ereignis anlegen
+      await fetch(`${GHD_OS_URL}/rest/v1/ghd_ereignisse`, {
+        method: 'POST', headers: h,
+        body: JSON.stringify({ app, typ, titel, prioritaet, payload: payload || null })
+      });
+    }
   } catch(e) { console.warn('ghd_ereignis fehlgeschlagen:', e); }
 }
 
