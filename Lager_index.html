@@ -1034,6 +1034,14 @@ function blMiniSpeichern(produktId, zone) {
 
 async function syncBestellungOS() {
   // GHD OS V1: Bestellaufgabe erzeugen/aktualisieren
+  // ── GHD-EREIGNIS: Vormerkliste hat Inhalt ─────────────────────
+  if (blItems.length > 0) {
+    ghd_ereignisSchreiben(
+      'Lager', 'bestellliste_offen',
+      blItems.length === 1 ? '1 Artikel auf Vormerkliste' : `${blItems.length} Artikel auf Vormerkliste`,
+      'diese-woche', null
+    );
+  }
   try {
     const GHD_URL = 'https://lpuxvvfrrcnbuzafscyk.supabase.co';
     const GHD_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyeGxhbHRndGdrZG9ta2xncmxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyNDYwMzYsImV4cCI6MjA5OTgyMjAzNn0.Bw8ch-EJb_cLYTwxHdpjUJWgoCjje3Jc32pB0yiBS8g';
