@@ -1035,7 +1035,7 @@ function blMiniSpeichern(produktId, zone) {
 async function syncBestellungOS() {
   // GHD OS V1: Bestellaufgabe erzeugen/aktualisieren
   try {
-    const GHD_URL = 'https://wrxlaltgtgkdomklgrlj.supabase.co';
+    const GHD_URL = 'https://lpuxvvfrrcnbuzafscyk.supabase.co';
     const GHD_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyeGxhbHRndGdrZG9ta2xncmxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyNDYwMzYsImV4cCI6MjA5OTgyMjAzNn0.Bw8ch-EJb_cLYTwxHdpjUJWgoCjje3Jc32pB0yiBS8g';
     const h = { "apikey": GHD_KEY, "Authorization": `Bearer ${GHD_KEY}`, "Content-Type": "application/json" };
     const SIGNAL_KEY = 'lager-bestellliste-offen';
@@ -1174,7 +1174,20 @@ function ensureSortOrder(data, save) {
 }
 ensureSortOrder(db, true);
 
-// GHD OS V1: Mindestbestand-Signal in ghd_aufgaben melden
+// ── GHD OS: Ereignis in zentrale ghd_ereignisse-Tabelle schreiben ──
+const GHD_OS_URL = 'https://wrxlaltgtgkdomklgrlj.supabase.co';
+const GHD_OS_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyeGxhbHRndGdrZG9ta2xncmxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyNDYwMzYsImV4cCI6MjA5OTgyMjAzNn0.Bw8ch-EJb_cLYTwxHdpjUJWgoCjje3Jc32pB0yiBS8g';
+async function ghd_ereignisSchreiben(app, typ, titel, prioritaet, payload) {
+  try {
+    await fetch(`${GHD_OS_URL}/rest/v1/ghd_ereignisse`, {
+      method: 'POST',
+      headers: { 'apikey': GHD_OS_KEY, 'Authorization': `Bearer ${GHD_OS_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ app, typ, titel, prioritaet, payload: payload || null })
+    });
+  } catch(e) { console.warn('ghd_ereignis fehlgeschlagen:', e); }
+}
+
+// OS-Integration: Artikel unter Mindestbestand in os_aufgaben melden
 async function syncLagerOS(products) {
   try {
     const unterMindest = products.filter(p => {
@@ -1182,36 +1195,25 @@ async function syncLagerOS(products) {
       const gesamt = Object.values(p.stock || {}).reduce((s, v) => s + (v || 0), 0);
       return gesamt <= p.reorder_point;
     });
-    const GHD_URL = 'https://wrxlaltgtgkdomklgrlj.supabase.co';
-    const GHD_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyeGxhbHRndGdrZG9ta2xncmxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyNDYwMzYsImV4cCI6MjA5OTgyMjAzNn0.Bw8ch-EJb_cLYTwxHdpjUJWgoCjje3Jc32pB0yiBS8g';
-    const h = { "apikey": GHD_KEY, "Authorization": `Bearer ${GHD_KEY}`, "Content-Type": "application/json" };
-    const SIGNAL_KEY = 'lager-mindestbestand-offen';
+    const headers = { "apikey": SUPA_KEY, "Authorization": `Bearer ${SUPA_KEY}`, "Content-Type": "application/json", "Prefer": "return=minimal" };
     if (unterMindest.length === 0) {
-      await fetch(`${GHD_URL}/rest/v1/ghd_aufgaben?signal_key=eq.${SIGNAL_KEY}&status=neq.erledigt`, {
-        method: 'PATCH', headers: { ...h, "Prefer": "return=minimal" },
-        body: JSON.stringify({ status: 'erledigt', erledigt_am: new Date().toISOString(), erledigt_von: 'system' })
-      });
+      await fetch(`${SUPA_URL}/rest/v1/os_aufgaben?bereich=eq.lager&status=eq.offen`, { method: "PATCH", headers, body: JSON.stringify({ status: "erledigt", erledigt_am: new Date().toISOString() }) });
       return;
     }
     const titel = unterMindest.length === 1 ? "1 Artikel unter Mindestbestand" : `${unterMindest.length} Artikel unter Mindestbestand`;
-    const naechster_schritt = 'Lager-App öffnen → Artikel unter Mindestbestand prüfen → nachbestellen';
-    const check = await fetch(`${GHD_URL}/rest/v1/ghd_aufgaben?signal_key=eq.${SIGNAL_KEY}&status=neq.erledigt&select=id`, { headers: h });
-    const existing = await check.json();
+
+    // GHD OS: Ereignis in zentrale Tabelle schreiben
+    await ghd_ereignisSchreiben(
+      'Lager', 'bestand_kritisch', titel, 'heute',
+      { artikel: unterMindest.map(p => ({ name: p.name, gesamt: Object.values(p.stock||{}).reduce((s,v)=>s+(v||0),0), reorder_point: p.reorder_point })) }
+    );
+
+    const r = await fetch(`${SUPA_URL}/rest/v1/os_aufgaben?bereich=eq.lager&status=eq.offen&select=id`, { headers: { "apikey": SUPA_KEY, "Authorization": `Bearer ${SUPA_KEY}` } });
+    const existing = await r.json();
     if (Array.isArray(existing) && existing.length > 0) {
-      await fetch(`${GHD_URL}/rest/v1/ghd_aufgaben?signal_key=eq.${SIGNAL_KEY}&status=neq.erledigt`, {
-        method: 'PATCH', headers: { ...h, "Prefer": "return=minimal" },
-        body: JSON.stringify({ titel, naechster_schritt })
-      });
+      await fetch(`${SUPA_URL}/rest/v1/os_aufgaben?bereich=eq.lager&status=eq.offen`, { method: "PATCH", headers, body: JSON.stringify({ titel }) });
     } else {
-      await fetch(`${GHD_URL}/rest/v1/ghd_aufgaben`, {
-        method: 'POST', headers: { ...h, "Prefer": "return=minimal" },
-        body: JSON.stringify({
-          typ: 'lager', titel, naechster_schritt,
-          verantwortlich: 'Mirjam', faellig_am: null,
-          prioritaet: 'diese-woche', status: 'neu',
-          app_kontext: 'lager', signal_key: SIGNAL_KEY, erstellt_von: 'system'
-        })
-      });
+      await fetch(`${SUPA_URL}/rest/v1/os_aufgaben`, { method: "POST", headers, body: JSON.stringify({ bereich: "lager", titel, status: "offen", prioritaet: "orange", quelle: "app", app_link: "https://mirjamwalenta-a11y.github.io/lager.greathairday/" }) });
     }
   } catch(e) { console.warn("OS-Sync Lager fehlgeschlagen:", e.message); }
 }
