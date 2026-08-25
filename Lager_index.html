@@ -2423,7 +2423,7 @@ window.switchTab = function(id) {
 // ── Wörni / Claude – sicherer Proxy ──
 async function claudeAnfrage(system, userText, maxTokens) {
   maxTokens = maxTokens || 400;
-  const res = await fetch('https://wrxlaltgtgkdomklgrlj.supabase.co/functions/v1/dynamic-processor', {
+  const res = await fetch('https://wrxlaltgtgkdomklgrlj.supabase.co/functions/v1/rapid-service', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
