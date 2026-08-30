@@ -7,6 +7,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lager – A great hair day</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
   :root {
     --bg:        #F8F5F0;
@@ -298,9 +299,31 @@
     body { background: white; }
     .order-wrap { padding: 10px; }
   }
+
+  /* LOGIN */
+  .login-gate { display: flex; position: fixed; inset: 0; background: var(--bg); z-index: 999; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+  .login-gate.hidden { display: none; }
+  .login-brand { font-size: 20px; font-weight: 700; color: var(--deep); margin-bottom: 2px; }
+  .login-sub { font-size: 13px; color: var(--mid); margin-bottom: 28px; }
+  .login-input { width: 100%; max-width: 280px; padding: 14px 16px; border-radius: var(--radius); border: 1.5px solid var(--border); background: var(--surface); font-size: 16px; font-family: inherit; color: var(--deep); outline: none; text-align: center; display: block; margin-bottom: 10px; }
+  .login-error { display: none; color: var(--rose); font-size: 12px; font-weight: 600; margin-top: 4px; margin-bottom: 12px; text-align: center; }
+  .login-btn { background: var(--deep); color: #fff; border: none; border-radius: var(--radius); padding: 13px 32px; font-size: 15px; font-weight: 700; font-family: inherit; cursor: pointer; margin-top: 8px; }
 </style>
 </head>
 <body>
+
+<!-- LOGIN -->
+<div class="login-gate" id="login-gate">
+  <div class="login-brand">A great hair day – Lager</div>
+  <div class="login-sub">Anmelden zum Fortfahren</div>
+  <input type="email" id="loginEmail" class="login-input" placeholder="E-Mail"
+    onkeydown="if(event.key==='Enter')document.getElementById('loginPw').focus()"/>
+  <input type="password" id="loginPw" class="login-input" placeholder="Passwort"
+    onkeydown="if(event.key==='Enter')loginMitSupabase()"
+    oninput="document.getElementById('loginFehler').style.display='none'"/>
+  <div id="loginFehler" class="login-error">Falsche E-Mail oder Passwort — bitte nochmal versuchen.</div>
+  <button class="login-btn" onclick="loginMitSupabase()" id="loginBtn">Einloggen</button>
+</div>
 
 <header>
   <div class="logo">
@@ -312,6 +335,7 @@
   </div>
   <div class="header-actions">
     <span id="syncStatus" style="font-size:11px;color:#aaa;align-self:center">💾 Lokal</span>
+    <button class="btn btn-ghost btn-sm" onclick="abmelden()" title="Abmelden">🚪 Abmelden</button>
     <button class="btn btn-ghost btn-sm" onclick="exportData()">⬇ Export JSON</button>
     <label class="btn btn-ghost btn-sm" style="cursor:pointer">
       ⬆ Import JSON
@@ -794,9 +818,39 @@ const BL_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsIn
 const BL_TABLE = 'lager_bestellliste';
 const BH_TABLE = 'lager_bestellhistorie';
 
+/* ── Supabase Auth Login ── */
+const AUTH_CLIENT = supabase.createClient(BL_URL, BL_KEY);
+
+async function loginMitSupabase() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pw    = document.getElementById('loginPw').value;
+  if (!email || !pw) return;
+  const btn = document.getElementById('loginBtn');
+  btn.textContent = 'Wird geprüft…';
+  btn.disabled = true;
+  const { data, error } = await AUTH_CLIENT.auth.signInWithPassword({ email, password: pw });
+  btn.textContent = 'Einloggen';
+  btn.disabled = false;
+  if (error) {
+    document.getElementById('loginFehler').style.display = 'block';
+    document.getElementById('loginPw').value = '';
+    document.getElementById('loginPw').focus();
+    return;
+  }
+  document.getElementById('login-gate').classList.add('hidden');
+  starteApp();
+}
+
+async function abmelden() {
+  await AUTH_CLIENT.auth.signOut();
+  location.reload();
+}
+
 async function blFetch(path, opts = {}) {
+  const { data: sessionData } = await AUTH_CLIENT.auth.getSession();
+  const token = sessionData?.session?.access_token || BL_KEY;
   const r = await fetch(`${BL_URL}/rest/v1/${path}`, {
-    headers: { "apikey": BL_KEY, "Authorization": `Bearer ${BL_KEY}`, "Content-Type": "application/json", "Prefer": opts.prefer || "return=representation", ...opts.headers },
+    headers: { "apikey": BL_KEY, "Authorization": `Bearer ${token}`, "Content-Type": "application/json", "Prefer": opts.prefer || "return=representation", ...opts.headers },
     ...opts
   });
   const t = await r.text();
@@ -1043,7 +1097,7 @@ async function syncBestellungOS() {
     );
   }
   try {
-    const GHD_URL = 'https://lpuxvvfrrcnbuzafscyk.supabase.co';
+    const GHD_URL = 'https://wrxlaltgtgkdomklgrlj.supabase.co';
     const GHD_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyeGxhbHRndGdrZG9ta2xncmxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyNDYwMzYsImV4cCI6MjA5OTgyMjAzNn0.Bw8ch-EJb_cLYTwxHdpjUJWgoCjje3Jc32pB0yiBS8g';
     const h = { "apikey": GHD_KEY, "Authorization": `Bearer ${GHD_KEY}`, "Content-Type": "application/json" };
     const SIGNAL_KEY = 'lager-bestellliste-offen';
@@ -1241,8 +1295,8 @@ async function syncLagerOS(products) {
   } catch(e) { console.warn("OS-Sync Lager fehlgeschlagen:", e.message); }
 }
 
-// Beim Start: Daten aus der Cloud laden
-(async () => {
+// Beim Start: Daten aus der Cloud laden — läuft erst nach erfolgtem Login, siehe starteApp()
+async function ladeCloudDaten() {
   const cloud = await loadFromSupabase();
   if (cloud && cloud.products && cloud.products.length > 0) {
     // Cloud hat Daten — nehmen wir sie
@@ -1257,7 +1311,7 @@ async function syncLagerOS(products) {
     syncToSupabase(db);
     syncLagerOS(db.products);
   }
-})();
+}
 
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2,6);
@@ -2180,7 +2234,20 @@ function moveProduct(id, zone, direction) {
   render();
 }
 
-render();
+function starteApp() {
+  render();
+  ladeCloudDaten();
+}
+
+// Bereits eingeloggt: Supabase-Session prüfen, bevor die App startet
+(async function() {
+  const { data } = await AUTH_CLIENT.auth.getSession();
+  if (data && data.session) {
+    document.getElementById('login-gate').classList.add('hidden');
+    starteApp();
+  }
+  // sonst: login-gate bleibt sichtbar (Standard), App startet erst nach loginMitSupabase()
+})();
 
 // ── NOTIZ-TAB ──
 var lagerNotizItems = JSON.parse(localStorage.getItem('lager-notiz') || '[]');
@@ -2423,9 +2490,11 @@ window.switchTab = function(id) {
 // ── Wörni / Claude – sicherer Proxy ──
 async function claudeAnfrage(system, userText, maxTokens) {
   maxTokens = maxTokens || 400;
-  const res = await fetch('https://wrxlaltgtgkdomklgrlj.supabase.co/functions/v1/rapid-service', {
+  const { data: sessionData } = await AUTH_CLIENT.auth.getSession();
+  const token = sessionData?.session?.access_token || BL_KEY;
+  const res = await fetch('https://wrxlaltgtgkdomklgrlj.supabase.co/functions/v1/rapid-function', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
       max_tokens: maxTokens,
