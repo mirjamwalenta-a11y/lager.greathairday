@@ -850,8 +850,8 @@ async function blFetch(path, opts = {}) {
   const { data: sessionData } = await AUTH_CLIENT.auth.getSession();
   const token = sessionData?.session?.access_token || BL_KEY;
   const r = await fetch(`${BL_URL}/rest/v1/${path}`, {
-    headers: { "apikey": BL_KEY, "Authorization": `Bearer ${token}`, "Content-Type": "application/json", "Prefer": opts.prefer || "return=representation", ...opts.headers },
-    ...opts
+    ...opts,
+    headers: { "apikey": BL_KEY, "Authorization": `Bearer ${token}`, "Content-Type": "application/json", "Prefer": opts.prefer || "return=representation", ...opts.headers }
   });
   const t = await r.text();
   if (!r.ok) throw new Error(t);
