@@ -1242,18 +1242,29 @@ const GHD_OS_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 async function ghd_ereignisSchreiben(app, typ, titel, prioritaet, payload) {
   try {
     const h = { 'apikey': GHD_OS_KEY, 'Authorization': `Bearer ${GHD_OS_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
-    // Prüfen ob schon ein ungelesenes Ereignis vom gleichen Typ existiert
+    // Prüfen ob schon ein ungelesenes Ereignis vom gleichen Typ existiert.
+    // order=erstellt_am.desc: das neueste wird aktualisiert, weitere (bereits doppelt
+    // entstandene) werden unten aufgeräumt.
     const checkRes = await fetch(
-      `${GHD_OS_URL}/rest/v1/ghd_ereignisse?app=eq.${encodeURIComponent(app)}&typ=eq.${encodeURIComponent(typ)}&gelesen=eq.false&select=id`,
+      `${GHD_OS_URL}/rest/v1/ghd_ereignisse?app=eq.${encodeURIComponent(app)}&typ=eq.${encodeURIComponent(typ)}&gelesen=eq.false&select=id&order=erstellt_am.desc`,
       { headers: { 'apikey': GHD_OS_KEY, 'Authorization': `Bearer ${GHD_OS_KEY}` } }
     );
     const existing = await checkRes.json();
     if (Array.isArray(existing) && existing.length > 0) {
-      // Vorhandenes Ereignis aktualisieren (Titel + Zeitstempel)
+      // Neuestes vorhandenes Ereignis aktualisieren (Titel + Zeitstempel)
+      const neuestesId = existing[0].id;
       await fetch(
-        `${GHD_OS_URL}/rest/v1/ghd_ereignisse?app=eq.${encodeURIComponent(app)}&typ=eq.${encodeURIComponent(typ)}&gelesen=eq.false`,
+        `${GHD_OS_URL}/rest/v1/ghd_ereignisse?id=eq.${neuestesId}`,
         { method: 'PATCH', headers: h, body: JSON.stringify({ titel, prioritaet, erstellt_am: new Date().toISOString(), payload: payload || null }) }
       );
+      // Bereits vorhandene weitere Duplikate desselben Falls aufräumen (als gelesen markieren)
+      if (existing.length > 1) {
+        const altIds = existing.slice(1).map(e => e.id).join(',');
+        await fetch(
+          `${GHD_OS_URL}/rest/v1/ghd_ereignisse?id=in.(${altIds})`,
+          { method: 'PATCH', headers: h, body: JSON.stringify({ gelesen: true }) }
+        );
+      }
     } else {
       // Neues Ereignis anlegen
       await fetch(`${GHD_OS_URL}/rest/v1/ghd_ereignisse`, {
