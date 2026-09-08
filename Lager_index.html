@@ -1286,6 +1286,7 @@ async function ghd_ereignisSchreiben(app, typ, titel, prioritaet, payload) {
 async function syncLagerOS(products) {
   try {
     const unterMindest = products.filter(p => {
+      if (!p.stock_erfasst) return false; // Ist-Stand wurde noch nie eingetragen — kein echter Fehlbestand, nur fehlende Erfassung
       if (!p.reorder_point || p.reorder_point <= 0) return false;
       const gesamt = Object.values(p.stock || {}).reduce((s, v) => s + (v || 0), 0);
       return gesamt <= p.reorder_point;
@@ -1293,6 +1294,15 @@ async function syncLagerOS(products) {
     const headers = { "apikey": SUPA_KEY, "Authorization": `Bearer ${SUPA_KEY}`, "Content-Type": "application/json", "Prefer": "return=minimal" };
     if (unterMindest.length === 0) {
       await fetch(`${SUPA_URL}/rest/v1/os_aufgaben?bereich=eq.lager&status=eq.offen`, { method: "PATCH", headers, body: JSON.stringify({ status: "erledigt", erledigt_am: new Date().toISOString() }) });
+      // Auch ein bereits bestehendes, noch ungelesenes Ereignis in der Schaltzentrale schließen —
+      // sonst bleibt die alte "X Artikel unter Mindestbestand"-Karte dort stehen, obwohl sich die
+      // Grundlage (Ist-Stand-Erfassung) inzwischen geändert hat.
+      try {
+        await fetch(`${GHD_OS_URL}/rest/v1/ghd_ereignisse?app=eq.Lager&typ=eq.bestand_kritisch&gelesen=eq.false`, {
+          method: 'PATCH', headers: { apikey: GHD_OS_KEY, Authorization: `Bearer ${GHD_OS_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+          body: JSON.stringify({ gelesen: true })
+        });
+      } catch(e) { console.warn('Lager-Ereignis schließen fehlgeschlagen:', e); }
       return;
     }
     const titel = unterMindest.length === 1 ? "1 Artikel unter Mindestbestand" : `${unterMindest.length} Artikel unter Mindestbestand`;
@@ -1568,14 +1578,14 @@ function saveProduct() {
     p.note=document.getElementById('fNote').value.trim();
     p.reorder_point=reorder; p.zones=zones; p.subcatId=subcatId;
     if (!p.soll_bestand) p.soll_bestand={};
-    zones.forEach(z=>{ if(p.stock[z]===undefined) p.stock[z]=stock; p.soll_bestand[z]=soll; });
+    zones.forEach(z=>{ if(p.stock[z]===undefined) { p.stock[z]=stock; p.stock_erfasst=true; } p.soll_bestand[z]=soll; });
     toast('Produkt aktualisiert ✓','success');
   } else {
     const stockObj={}, sollObj={};
     zones.forEach(z=>{ stockObj[z]=stock; sollObj[z]=soll; });
     db.products.push({ id:genId(), name, unit:document.getElementById('fUnit').value.trim(),
       note:document.getElementById('fNote').value.trim(), zones, stock:stockObj,
-      reorder_point:reorder, soll_bestand:sollObj, subcatId, created_at:new Date().toISOString() });
+      reorder_point:reorder, soll_bestand:sollObj, subcatId, stock_erfasst:true, created_at:new Date().toISOString() });
     toast('Produkt hinzugefügt ✓','success');
   }
   saveData(db); closeModal('modalAdd'); render();
@@ -1607,6 +1617,7 @@ function applyStock() {
   if (act==='add') p.stock[zone]+=qty;
   else if (act==='sub') { if(p.stock[zone]<qty){toast('Nicht genug Bestand.','error');return;} p.stock[zone]-=qty; }
   else p.stock[zone]=qty;
+  p.stock_erfasst=true;
   saveData(db); closeModal('modalStock');
   toast(`Bestand: ${p.stock[zone]} ${p.unit||'Stk.'}`, 'success'); render();
 }
@@ -1637,6 +1648,7 @@ function applyTransfer() {
   if ((p.stock[from]||0)<qty){toast('Nicht genug Bestand.','error');return;}
   p.stock[from]=(p.stock[from]||0)-qty;
   p.stock[to]=(p.stock[to]||0)+qty;
+  p.stock_erfasst=true;
   if (!p.zones.includes(to)) p.zones.push(to);
   saveData(db); closeModal('modalTransfer');
   toast(`${qty} ${p.unit||'Stk.'} transferiert ✓`,'success'); render();
