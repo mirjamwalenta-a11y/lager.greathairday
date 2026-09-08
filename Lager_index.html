@@ -848,7 +848,9 @@ async function abmelden() {
 
 async function blFetch(path, opts = {}) {
   const { data: sessionData } = await AUTH_CLIENT.auth.getSession();
-  const token = sessionData?.session?.access_token || BL_KEY;
+  const isWrite = opts.method && opts.method !== 'GET';
+  const token = sessionData?.session?.access_token || (isWrite ? null : BL_KEY);
+  if (isWrite && !token) throw new Error('Nicht angemeldet');
   const r = await fetch(`${BL_URL}/rest/v1/${path}`, {
     ...opts,
     headers: { "apikey": BL_KEY, "Authorization": `Bearer ${token}`, "Content-Type": "application/json", "Prefer": opts.prefer || "return=representation", ...opts.headers }
@@ -1151,11 +1153,13 @@ function setSyncStatus(s) {
 async function syncToSupabase(data) {
   setSyncStatus('syncing');
   try {
-    const res = await fetch(`${SUPA_URL}/rest/v1/${SUPA_TABLE}?id=eq.singleton`, {
+    const { data: sessionData } = await AUTH_CLIENT.auth.getSession();
+    if (!sessionData?.session) { setSyncStatus('error'); return; }   // ohne Login nicht schreiben
+    const res = await fetch(`${BL_URL}/rest/v1/${SUPA_TABLE}?id=eq.singleton`, {
       method: 'PATCH',
       headers: {
-        'apikey': SUPA_KEY,
-        'Authorization': `Bearer ${SUPA_KEY}`,
+        'apikey': BL_KEY,
+        'Authorization': `Bearer ${sessionData.session.access_token}`,
         'Content-Type': 'application/json',
         'Prefer': 'return=minimal'
       },
@@ -1172,10 +1176,12 @@ async function syncToSupabase(data) {
 async function loadFromSupabase() {
   setSyncStatus('syncing');
   try {
-    const res = await fetch(`${SUPA_URL}/rest/v1/${SUPA_TABLE}?id=eq.singleton&select=data,updated_at`, {
+    const { data: sessionData } = await AUTH_CLIENT.auth.getSession();
+    if (!sessionData?.session) { setSyncStatus('error'); return null; }
+    const res = await fetch(`${BL_URL}/rest/v1/${SUPA_TABLE}?id=eq.singleton&select=data,updated_at`, {
       headers: {
-        'apikey': SUPA_KEY,
-        'Authorization': `Bearer ${SUPA_KEY}`
+        'apikey': BL_KEY,
+        'Authorization': `Bearer ${sessionData.session.access_token}`
       }
     });
     if (!res.ok) throw new Error(res.status);
@@ -2278,7 +2284,7 @@ function lagerNotizRender() {
     <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
       <input type="checkbox" ${it.done?'checked':''} onchange="lagerNotizToggle(${i})"
         style="accent-color:var(--gold);width:16px;height:16px;cursor:pointer;flex-shrink:0;">
-      <span style="flex:1;font-size:14px;${it.done?'text-decoration:line-through;color:var(--mid);':''}">${it.text}</span>
+      <span style="flex:1;font-size:14px;${it.done?'text-decoration:line-through;color:var(--mid);':''}">${esc(it.text)}</span>
       <button onclick="lagerNotizDelete(${i})"
         style="background:none;border:none;font-size:16px;cursor:pointer;color:#C0392B;flex-shrink:0;">×</button>
     </div>`).join('');
@@ -2387,7 +2393,7 @@ function invRender() {
     return '<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;margin-bottom:10px;overflow:hidden;">'
       + '<div style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;">'
       + '<div style="flex:1;min-width:0;">'
-      + '<div style="font-size:15px;font-weight:700;">' + g.name + '</div>'
+      + '<div style="font-size:15px;font-weight:700;">' + esc(g.name) + '</div>'
       + '<div style="font-size:12px;color:var(--mid);margin-top:2px;">'
       + (g.anzahl||0) + ' Stk. × €' + parseFloat(g.preis||0).toFixed(2)
       + (rabattInfo ? ' · ' + rabattInfo : '')
