@@ -1100,37 +1100,22 @@ async function syncBestellungOS() {
     );
   }
   try {
-    const GHD_URL = 'https://wrxlaltgtgkdomklgrlj.supabase.co';
-    const GHD_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyeGxhbHRndGdrZG9ta2xncmxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyNDYwMzYsImV4cCI6MjA5OTgyMjAzNn0.Bw8ch-EJb_cLYTwxHdpjUJWgoCjje3Jc32pB0yiBS8g';
-    const h = { "apikey": GHD_KEY, "Authorization": `Bearer ${GHD_KEY}`, "Content-Type": "application/json" };
     const SIGNAL_KEY = 'lager-bestellliste-offen';
     if (blItems.length === 0) {
-      await fetch(`${GHD_URL}/rest/v1/ghd_aufgaben?signal_key=eq.${SIGNAL_KEY}&status=neq.erledigt`, {
-        method: 'PATCH', headers: { ...h, "Prefer": "return=minimal" },
-        body: JSON.stringify({ status: 'erledigt', erledigt_am: new Date().toISOString(), erledigt_von: 'system' })
-      });
+      await ghdRpc('ghd_aufgabe_erledigt', { p_signal_key: SIGNAL_KEY, p_erledigt_von: 'system' });
       return;
     }
     const titel = blItems.length === 1 ? `1 Artikel auf Vormerkliste – Bestellung vorbereiten` : `${blItems.length} Artikel auf Vormerkliste – Bestellung vorbereiten`;
-    const check = await fetch(`${GHD_URL}/rest/v1/ghd_aufgaben?signal_key=eq.${SIGNAL_KEY}&status=neq.erledigt&select=id`, { headers: h });
-    const existing = await check.json();
-    if (Array.isArray(existing) && existing.length > 0) {
-      await fetch(`${GHD_URL}/rest/v1/ghd_aufgaben?signal_key=eq.${SIGNAL_KEY}&status=neq.erledigt`, {
-        method: 'PATCH', headers: { ...h, "Prefer": "return=minimal" },
-        body: JSON.stringify({ titel })
-      });
-    } else {
-      await fetch(`${GHD_URL}/rest/v1/ghd_aufgaben`, {
-        method: 'POST', headers: { ...h, "Prefer": "return=minimal" },
-        body: JSON.stringify({
-          typ: 'bestellung', titel,
-          naechster_schritt: 'Lager-App öffnen → Vormerkliste prüfen → Bestellung aufgeben',
-          verantwortlich: 'Mirjam', faellig_am: null,
-          prioritaet: 'diese-woche', status: 'neu',
-          app_kontext: 'lager', signal_key: SIGNAL_KEY, erstellt_von: 'system'
-        })
-      });
-    }
+    await ghdRpc('ghd_aufgabe_melden', {
+      p_signal_key: SIGNAL_KEY,
+      p_daten: {
+        typ: 'bestellung', titel,
+        naechster_schritt: 'Lager-App öffnen → Vormerkliste prüfen → Bestellung aufgeben',
+        verantwortlich: 'Mirjam',
+        prioritaet: 'diese-woche',
+        app_kontext: 'lager', erstellt_von: 'system'
+      }
+    });
   } catch(e) { console.warn('Bestell-OS-Sync:', e.message); }
 }
 
@@ -1244,41 +1229,25 @@ function ensureSortOrder(data, save) {
 ensureSortOrder(db, true);
 
 // ── GHD OS: Ereignis in zentrale ghd_ereignisse-Tabelle schreiben ──
-const GHD_OS_URL = 'https://wrxlaltgtgkdomklgrlj.supabase.co';
-const GHD_OS_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyeGxhbHRndGdrZG9ta2xncmxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyNDYwMzYsImV4cCI6MjA5OTgyMjAzNn0.Bw8ch-EJb_cLYTwxHdpjUJWgoCjje3Jc32pB0yiBS8g';
+// Wörni-Meldungen über Serverfunktionen (Team-Repo, Migration 20260927100000):
+// mit dem Login-Token statt dem Anon-Key; die App liest die Wörni-Tabellen
+// nicht mehr selbst, „schon da? dann aktualisieren“ erledigt der Server.
+async function ghdRpc(fn, args) {
+  const { data } = await AUTH_CLIENT.auth.getSession();
+  const token = data?.session?.access_token;
+  if (!token) throw new Error('Nicht angemeldet');
+  const r = await fetch(`${BL_URL}/rest/v1/rpc/${fn}`, {
+    method: 'POST',
+    headers: { 'apikey': BL_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(args)
+  });
+  if (!r.ok) throw new Error(await r.text());
+}
 async function ghd_ereignisSchreiben(app, typ, titel, prioritaet, payload) {
   try {
-    const h = { 'apikey': GHD_OS_KEY, 'Authorization': `Bearer ${GHD_OS_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
-    // Prüfen ob schon ein ungelesenes Ereignis vom gleichen Typ existiert.
-    // order=erstellt_am.desc: das neueste wird aktualisiert, weitere (bereits doppelt
-    // entstandene) werden unten aufgeräumt.
-    const checkRes = await fetch(
-      `${GHD_OS_URL}/rest/v1/ghd_ereignisse?app=eq.${encodeURIComponent(app)}&typ=eq.${encodeURIComponent(typ)}&gelesen=eq.false&select=id&order=erstellt_am.desc`,
-      { headers: { 'apikey': GHD_OS_KEY, 'Authorization': `Bearer ${GHD_OS_KEY}` } }
-    );
-    const existing = await checkRes.json();
-    if (Array.isArray(existing) && existing.length > 0) {
-      // Neuestes vorhandenes Ereignis aktualisieren (Titel + Zeitstempel)
-      const neuestesId = existing[0].id;
-      await fetch(
-        `${GHD_OS_URL}/rest/v1/ghd_ereignisse?id=eq.${neuestesId}`,
-        { method: 'PATCH', headers: h, body: JSON.stringify({ titel, prioritaet, erstellt_am: new Date().toISOString(), payload: payload || null }) }
-      );
-      // Bereits vorhandene weitere Duplikate desselben Falls aufräumen (als gelesen markieren)
-      if (existing.length > 1) {
-        const altIds = existing.slice(1).map(e => e.id).join(',');
-        await fetch(
-          `${GHD_OS_URL}/rest/v1/ghd_ereignisse?id=in.(${altIds})`,
-          { method: 'PATCH', headers: h, body: JSON.stringify({ gelesen: true }) }
-        );
-      }
-    } else {
-      // Neues Ereignis anlegen
-      await fetch(`${GHD_OS_URL}/rest/v1/ghd_ereignisse`, {
-        method: 'POST', headers: h,
-        body: JSON.stringify({ app, typ, titel, prioritaet, payload: payload || null })
-      });
-    }
+    await ghdRpc('ghd_ereignis_melden', {
+      p_app: app, p_typ: typ, p_titel: titel, p_prioritaet: prioritaet, p_payload: payload || null
+    });
   } catch(e) { console.warn('ghd_ereignis fehlgeschlagen:', e); }
 }
 
@@ -1298,10 +1267,7 @@ async function syncLagerOS(products) {
       // sonst bleibt die alte "X Artikel unter Mindestbestand"-Karte dort stehen, obwohl sich die
       // Grundlage (Ist-Stand-Erfassung) inzwischen geändert hat.
       try {
-        await fetch(`${GHD_OS_URL}/rest/v1/ghd_ereignisse?app=eq.Lager&typ=eq.bestand_kritisch&gelesen=eq.false`, {
-          method: 'PATCH', headers: { apikey: GHD_OS_KEY, Authorization: `Bearer ${GHD_OS_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-          body: JSON.stringify({ gelesen: true })
-        });
+        await ghdRpc('ghd_ereignis_erledigt', { p_app: 'Lager', p_typ: 'bestand_kritisch' });
       } catch(e) { console.warn('Lager-Ereignis schließen fehlgeschlagen:', e); }
       return;
     }
