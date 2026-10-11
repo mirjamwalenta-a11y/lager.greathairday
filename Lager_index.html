@@ -238,6 +238,12 @@
   .tab-nav {
     display: flex; gap: 4px; padding: 0 20px;
     background: var(--deep); border-top: 1px solid rgba(255,255,255,.1);
+    overflow-x: auto; scrollbar-width: none;   /* am Handy: Tabs wischen statt Seite verbreitern */
+  }
+  .tab-nav::-webkit-scrollbar { display: none; }
+  @media (max-width: 600px) {
+    .tab-nav { padding: 0 6px; gap: 0; }
+    .tab-btn { padding: 10px 10px; }
   }
   .tab-btn {
     padding: 10px 18px; font: inherit; font-size: 13px; font-weight: 500;
@@ -314,6 +320,7 @@
   .login-btn { background: var(--deep); color: #fff; border: none; border-radius: var(--radius); padding: 13px 32px; font-size: 15px; font-weight: 700; font-family: inherit; cursor: pointer; margin-top: 8px; }
   /* ── Inventur ── */
   .inv-wrap { max-width: 680px; margin: 0 auto; padding: 16px 0; }
+  @media (max-width: 712px) { .inv-wrap { padding: 12px 10px; } }
   .inv-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: 14px; overflow: hidden; margin-bottom: 14px; }
   .inv-card-head { padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--bg);
     display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
