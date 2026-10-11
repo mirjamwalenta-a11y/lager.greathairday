@@ -39,7 +39,7 @@ CREATE OR REPLACE FUNCTION lager_inventur_stichtag_setzen(p_id uuid, p_stichtag 
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE r lager_inventuren;
 BEGIN
-  IF NOT abw_is_owner() THEN RAISE EXCEPTION 'Nur die Chefin'; END IF;
+  IF NOT lager_ist_chefin() THEN RAISE EXCEPTION 'Nur die Chefin'; END IF;
   IF p_stichtag IS NULL THEN RAISE EXCEPTION 'Stichtag fehlt'; END IF;
   UPDATE lager_inventuren SET stichtag = p_stichtag WHERE id = p_id RETURNING * INTO r;
   IF NOT FOUND THEN RAISE EXCEPTION 'Inventur nicht gefunden'; END IF;
@@ -53,17 +53,17 @@ GRANT EXECUTE ON FUNCTION lager_inventur_starten(date), lager_inventur_stichtag_
 DROP POLICY IF EXISTS lager_inventur_zaehlungen_anlegen ON lager_inventur_zaehlungen;
 CREATE POLICY lager_inventur_zaehlungen_anlegen ON lager_inventur_zaehlungen
   FOR INSERT TO authenticated
-  WITH CHECK (lager_inventur_ist_offen(inventur_id) OR abw_is_owner());
+  WITH CHECK (lager_inventur_ist_offen(inventur_id) OR lager_ist_chefin());
 
 DROP POLICY IF EXISTS lager_inventur_zaehlungen_aendern ON lager_inventur_zaehlungen;
 CREATE POLICY lager_inventur_zaehlungen_aendern ON lager_inventur_zaehlungen
   FOR UPDATE TO authenticated
-  USING (lager_inventur_ist_offen(inventur_id) OR abw_is_owner())
-  WITH CHECK (lager_inventur_ist_offen(inventur_id) OR abw_is_owner());
+  USING (lager_inventur_ist_offen(inventur_id) OR lager_ist_chefin())
+  WITH CHECK (lager_inventur_ist_offen(inventur_id) OR lager_ist_chefin());
 
 DROP POLICY IF EXISTS lager_inventur_zaehlungen_entfernen ON lager_inventur_zaehlungen;
 CREATE POLICY lager_inventur_zaehlungen_entfernen ON lager_inventur_zaehlungen
   FOR DELETE TO authenticated
-  USING (lager_inventur_ist_offen(inventur_id) OR abw_is_owner());
+  USING (lager_inventur_ist_offen(inventur_id) OR lager_ist_chefin());
 
 COMMIT;

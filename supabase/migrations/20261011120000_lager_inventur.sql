@@ -8,8 +8,10 @@
 --
 --  Grundsätze (CLAUDE.md):
 --    * Beide Tabellen haben RLS ab dem Anlegen, anon bekommt nichts.
---    * Wer Chefin ist, entscheidet die Datenbank (abw_is_owner()),
---      nie der Browser.
+--    * Wer Chefin ist, entscheidet die Datenbank (lager_ist_chefin()),
+--      nie der Browser. Chefin ist, wer in einer der beiden bestehenden
+--      Festlegungen als Chefin steht: abw_is_owner() (Abwesenheiten-App)
+--      oder teamapp_persons.rolle = 'inhaberin' (Start-App/Team-App).
 --    * Inventuren werden nie überschrieben; löschen kann nur die Chefin.
 --      Statuswechsel und Löschen nur über SECURITY-DEFINER-Funktionen.
 --
@@ -33,6 +35,10 @@ DO $pruef$
 BEGIN
   IF to_regprocedure('public.abw_is_owner()') IS NULL THEN
     RAISE EXCEPTION 'Abbruch: abw_is_owner() fehlt – ist das das richtige Supabase-Projekt?';
+  END IF;
+  IF (SELECT count(*) FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'teamapp_persons' AND column_name IN ('email', 'rolle')) <> 2 THEN
+    RAISE EXCEPTION 'Abbruch: teamapp_persons (email, rolle) fehlt – bitte Claude Bescheid geben.';
   END IF;
 END $pruef$;
 
@@ -88,10 +94,16 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
   SELECT EXISTS (SELECT 1 FROM lager_inventuren WHERE id = p_id AND status = 'offen');
 $$;
 
--- Nur für das Ein-/Ausblenden von Knöpfen; abgesichert wird über RLS/Funktionen.
+-- Chefin-Prüfung für alle Policies und Funktionen unten (und fürs Ein-/Ausblenden
+-- der Knöpfe in der App): Chefin laut Abwesenheiten-App ODER Inhaberin laut
+-- teamapp_persons – beide Apps teilen sich dieselbe Anmeldung.
 CREATE OR REPLACE FUNCTION lager_ist_chefin() RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
-  SELECT abw_is_owner();
+  SELECT abw_is_owner() OR EXISTS (
+    SELECT 1 FROM teamapp_persons
+    WHERE rolle = 'inhaberin'
+      AND lower(email) = lower(auth.jwt() ->> 'email')
+  );
 $$;
 
 -- ── Rechte ─────────────────────────────────────────────────────
@@ -111,23 +123,23 @@ CREATE POLICY lager_inventuren_lesen ON lager_inventuren
 DROP POLICY IF EXISTS lager_inventur_zaehlungen_lesen ON lager_inventur_zaehlungen;
 CREATE POLICY lager_inventur_zaehlungen_lesen ON lager_inventur_zaehlungen
   FOR SELECT TO authenticated
-  USING (lager_inventur_ist_offen(inventur_id) OR abw_is_owner());
+  USING (lager_inventur_ist_offen(inventur_id) OR lager_ist_chefin());
 
 DROP POLICY IF EXISTS lager_inventur_zaehlungen_anlegen ON lager_inventur_zaehlungen;
 CREATE POLICY lager_inventur_zaehlungen_anlegen ON lager_inventur_zaehlungen
   FOR INSERT TO authenticated
-  WITH CHECK (lager_inventur_ist_offen(inventur_id) OR abw_is_owner());
+  WITH CHECK (lager_inventur_ist_offen(inventur_id) OR lager_ist_chefin());
 
 DROP POLICY IF EXISTS lager_inventur_zaehlungen_aendern ON lager_inventur_zaehlungen;
 CREATE POLICY lager_inventur_zaehlungen_aendern ON lager_inventur_zaehlungen
   FOR UPDATE TO authenticated
-  USING (lager_inventur_ist_offen(inventur_id) OR abw_is_owner())
-  WITH CHECK (lager_inventur_ist_offen(inventur_id) OR abw_is_owner());
+  USING (lager_inventur_ist_offen(inventur_id) OR lager_ist_chefin())
+  WITH CHECK (lager_inventur_ist_offen(inventur_id) OR lager_ist_chefin());
 
 DROP POLICY IF EXISTS lager_inventur_zaehlungen_entfernen ON lager_inventur_zaehlungen;
 CREATE POLICY lager_inventur_zaehlungen_entfernen ON lager_inventur_zaehlungen
   FOR DELETE TO authenticated
-  USING (lager_inventur_ist_offen(inventur_id) OR abw_is_owner());
+  USING (lager_inventur_ist_offen(inventur_id) OR lager_ist_chefin());
 
 -- ── Funktionen für Statuswechsel ───────────────────────────────
 -- Neue Inventur starten (alle Angemeldeten). Gibt es schon eine offene,
@@ -151,7 +163,7 @@ CREATE OR REPLACE FUNCTION lager_inventur_stichtag_setzen(p_id uuid, p_stichtag 
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE r lager_inventuren;
 BEGIN
-  IF NOT abw_is_owner() THEN RAISE EXCEPTION 'Nur die Chefin'; END IF;
+  IF NOT lager_ist_chefin() THEN RAISE EXCEPTION 'Nur die Chefin'; END IF;
   IF p_stichtag IS NULL THEN RAISE EXCEPTION 'Stichtag fehlt'; END IF;
   UPDATE lager_inventuren SET stichtag = p_stichtag WHERE id = p_id RETURNING * INTO r;
   IF NOT FOUND THEN RAISE EXCEPTION 'Inventur nicht gefunden'; END IF;
@@ -162,7 +174,7 @@ CREATE OR REPLACE FUNCTION lager_inventur_abschliessen(p_id uuid) RETURNS lager_
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE r lager_inventuren;
 BEGIN
-  IF NOT abw_is_owner() THEN RAISE EXCEPTION 'Nur die Chefin'; END IF;
+  IF NOT lager_ist_chefin() THEN RAISE EXCEPTION 'Nur die Chefin'; END IF;
   UPDATE lager_inventuren
      SET status = 'abgeschlossen', abgeschlossen_am = now(), abgeschlossen_von = auth.uid()
    WHERE id = p_id AND status = 'offen'
@@ -175,7 +187,7 @@ CREATE OR REPLACE FUNCTION lager_inventur_wieder_oeffnen(p_id uuid) RETURNS lage
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE r lager_inventuren;
 BEGIN
-  IF NOT abw_is_owner() THEN RAISE EXCEPTION 'Nur die Chefin'; END IF;
+  IF NOT lager_ist_chefin() THEN RAISE EXCEPTION 'Nur die Chefin'; END IF;
   IF EXISTS (SELECT 1 FROM lager_inventuren WHERE status = 'offen') THEN
     RAISE EXCEPTION 'Es gibt bereits eine offene Inventur';
   END IF;
@@ -198,7 +210,7 @@ GRANT EXECUTE ON FUNCTION lager_inventur_ist_offen(uuid), lager_ist_chefin(),
 CREATE OR REPLACE FUNCTION lager_inventur_loeschen(p_id uuid) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
-  IF NOT abw_is_owner() THEN RAISE EXCEPTION 'Nur die Chefin'; END IF;
+  IF NOT lager_ist_chefin() THEN RAISE EXCEPTION 'Nur die Chefin'; END IF;
   DELETE FROM lager_inventur_zaehlungen WHERE inventur_id = p_id;
   DELETE FROM lager_inventuren WHERE id = p_id;
   IF NOT FOUND THEN RAISE EXCEPTION 'Inventur nicht gefunden'; END IF;
