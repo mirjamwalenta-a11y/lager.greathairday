@@ -310,6 +310,33 @@
   .login-input { width: 100%; max-width: 280px; padding: 14px 16px; border-radius: var(--radius); border: 1.5px solid var(--border); background: var(--surface); font-size: 16px; font-family: inherit; color: var(--deep); outline: none; text-align: center; display: block; margin-bottom: 10px; }
   .login-error { display: none; color: var(--rose); font-size: 12px; font-weight: 600; margin-top: 4px; margin-bottom: 12px; text-align: center; }
   .login-btn { background: var(--deep); color: #fff; border: none; border-radius: var(--radius); padding: 13px 32px; font-size: 15px; font-weight: 700; font-family: inherit; cursor: pointer; margin-top: 8px; }
+  /* ── Inventur ── */
+  .inv-wrap { max-width: 680px; margin: 0 auto; padding: 16px 0; }
+  .inv-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: 14px; overflow: hidden; margin-bottom: 14px; }
+  .inv-card-head { padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--bg);
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  .inv-card-body { padding: 14px 16px; }
+  .inv-select { padding: 7px 10px; border: 1.5px solid var(--border); border-radius: 8px; font: inherit; font-size: 13px; background: var(--surface); max-width: 100%; }
+  .inv-label { font-size: 11px; font-weight: 700; color: var(--mid); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+  .inv-orte { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .inv-ort { padding: 14px 8px; font: inherit; font-size: 15px; font-weight: 700; border-radius: 12px; cursor: pointer;
+    border: 2px solid var(--border); background: var(--surface); color: var(--deep); }
+  .inv-ort.active { border-color: var(--deep); background: var(--deep); color: #fff; }
+  .inv-scan-btn { width: 100%; padding: 14px; font-size: 16px; }
+  #inv-scan-view { width: 100%; margin-top: 10px; border-radius: 10px; overflow: hidden; background: #000; }
+  .inv-manuell { display: flex; gap: 8px; margin-top: 10px; }
+  .inv-manuell input { flex: 1; min-width: 0; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 10px; font: inherit; font-size: 15px; }
+  .inv-meldung { margin-top: 10px; padding: 10px 12px; border-radius: 10px; font-size: 13px; background: var(--rose-lt); color: #8a2a3a; }
+  .inv-menge { width: 100%; padding: 14px; font: inherit; font-size: 26px; font-weight: 700; text-align: center;
+    border: 2px solid var(--border); border-radius: 12px; box-sizing: border-box; }
+  .inv-tabelle { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .inv-tabelle th { text-align: right; font-size: 11px; color: var(--mid); font-weight: 700; padding: 6px 4px; border-bottom: 1px solid var(--border); }
+  .inv-tabelle td { text-align: right; padding: 8px 4px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .inv-tabelle th:first-child, .inv-tabelle td:first-child { text-align: left; }
+  .inv-tabelle tr.inv-zeile { cursor: pointer; }
+  .inv-tabelle tr.inv-summe td { font-weight: 700; background: var(--bg); }
+  .inv-klein { font-size: 11px; color: var(--mid); }
+  .inv-gesamt { display: flex; justify-content: space-between; align-items: baseline; font-size: 17px; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -494,6 +521,29 @@
       <div class="field">
         <label>Notiz (optional)</label>
         <textarea id="fNote" rows="2" placeholder="Lieferant, Artikelnr., …"></textarea>
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:12px;font-size:12px;font-weight:700;color:var(--mid);text-transform:uppercase;letter-spacing:.06em;">
+        Inventurdaten <span style="font-weight:400;text-transform:none;letter-spacing:0;">– alle vier nötig, damit das Produkt gezählt werden kann</span>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Barcode</label>
+          <input type="text" id="fBarcode" inputmode="numeric" autocomplete="off" placeholder="z. B. 3474636…">
+        </div>
+        <div class="field">
+          <label>Produktfirma</label>
+          <select id="fFirma"></select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Bruttopreis pro Gebinde (€)</label>
+          <input type="number" id="fPreisGebinde" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+        </div>
+        <div class="field">
+          <label>Stück pro Gebinde</label>
+          <input type="number" id="fStueckGebinde" min="1" step="1" inputmode="numeric" placeholder="z. B. 12">
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -734,71 +784,60 @@
 
 <!-- ── INVENTUR-TAB ── -->
 <div id="tab-inventur" class="tab-panel">
-  <div style="max-width:680px;margin:0 auto;padding:20px 0;">
+  <div class="inv-wrap">
 
-    <!-- Kopfzeile -->
-    <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px;">
-      <div style="padding:14px 18px;border-bottom:1px solid var(--border);background:var(--bg);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <!-- Kopf: Inventur-Auswahl und Status -->
+    <div class="inv-card">
+      <div class="inv-card-head">
         <div style="font-size:15px;font-weight:700;">📋 Inventur</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button onclick="invNeuGruppe()" class="btn btn-primary btn-sm">+ Gruppe</button>
-          <button onclick="invExportExcel()" class="btn btn-outline btn-sm no-print">📥 Excel</button>
-          <button onclick="invReset()" class="btn btn-outline btn-sm no-print" style="color:#C0392B;border-color:#C0392B;">🗑 Leeren</button>
+        <select id="inv-auswahl" onchange="invAuswahlGeaendert()" class="inv-select"></select>
+      </div>
+      <div id="inv-status" class="inv-card-body"></div>
+    </div>
+
+    <!-- Erfassung (nur bei offener Inventur) -->
+    <div id="inv-erfassung" style="display:none;">
+      <div class="inv-card">
+        <div class="inv-card-body">
+          <div class="inv-label">Ort</div>
+          <div class="inv-orte">
+            <button id="inv-ort-geschaeft" class="inv-ort" onclick="invOrtWaehlen('geschaeft')">🏪 Geschäft</button>
+            <button id="inv-ort-lager" class="inv-ort" onclick="invOrtWaehlen('lager')">📦 Lager</button>
+          </div>
+          <button class="btn btn-primary inv-scan-btn" onclick="invScanStarten()">📷 Barcode scannen</button>
+          <div id="inv-scan-box" style="display:none;">
+            <div id="inv-scan-view"></div>
+            <button class="btn btn-outline" style="width:100%;margin-top:8px;" onclick="invScanStoppen()">Kamera schließen</button>
+          </div>
+          <div class="inv-manuell">
+            <input id="inv-barcode-eingabe" type="text" inputmode="numeric" autocomplete="off" placeholder="oder Barcode eintippen"
+              onkeydown="if(event.key==='Enter'){invBarcodeManuell();}">
+            <button class="btn btn-outline" onclick="invBarcodeManuell()">OK</button>
+          </div>
+          <div id="inv-meldung" class="inv-meldung" style="display:none;"></div>
+        </div>
+      </div>
+
+      <!-- Erfassungskarte für ein gescanntes Produkt -->
+      <div id="inv-eintrag" class="inv-card" style="display:none;">
+        <div class="inv-card-body">
+          <div id="inv-eintrag-info"></div>
+          <div class="inv-label" style="margin-top:12px;" id="inv-eintrag-label">Stück</div>
+          <input id="inv-eintrag-menge" type="number" min="0" step="1" inputmode="numeric" class="inv-menge"
+            onkeydown="if(event.key==='Enter'){invEintragSpeichern();}">
+          <div style="display:flex;gap:8px;margin-top:12px;">
+            <button class="btn btn-outline" style="flex:1;" onclick="invEintragSchliessen()">Abbrechen</button>
+            <button class="btn btn-primary" style="flex:2;" onclick="invEintragSpeichern()">Speichern</button>
+          </div>
+          <button id="inv-eintrag-entfernen" class="btn btn-outline" style="width:100%;margin-top:8px;color:#C0392B;border-color:#C0392B;display:none;"
+            onclick="invEintragEntfernen()">Eintrag an diesem Ort entfernen</button>
         </div>
       </div>
     </div>
 
-    <!-- Gruppen-Liste -->
-    <div id="inv-list"></div>
+    <!-- Erfasste Mengen bzw. Auswertung -->
+    <div id="inv-inhalt"></div>
 
-    <!-- Gesamtsumme -->
-    <div id="inv-total" style="display:none;background:var(--surface);border:1.5px solid var(--gold,#8a6a00);border-radius:14px;padding:16px 18px;margin-top:8px;">
-      <div style="font-size:13px;font-weight:700;color:var(--mid);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">Gesamtwert Inventur</div>
-      <div id="inv-total-rows"></div>
-    </div>
-
-  </div>
-</div>
-
-<!-- INVENTUR MODAL -->
-<div id="inv-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999;align-items:flex-end;">
-  <div style="background:#fff;border-radius:20px 20px 0 0;padding:24px;width:100%;max-height:90vh;overflow-y:auto;">
-    <div style="font-size:16px;font-weight:700;margin-bottom:16px;" id="inv-modal-title">Gruppe hinzufügen</div>
-    <input id="inv-m-name" placeholder="Gruppenname (z.B. INOA Farben)" type="text"
-      style="width:100%;border:1px solid #E5E5EA;border-radius:10px;padding:10px 12px;font-size:15px;outline:none;margin-bottom:10px;box-sizing:border-box;">
-    <div style="display:flex;gap:8px;margin-bottom:10px;">
-      <div style="flex:1;">
-        <div style="font-size:11px;color:#8E8E93;margin-bottom:4px;">ANZAHL</div>
-        <input id="inv-m-anzahl" placeholder="0" type="number" min="0"
-          style="width:100%;border:1px solid #E5E5EA;border-radius:10px;padding:10px 12px;font-size:15px;outline:none;box-sizing:border-box;">
-      </div>
-      <div style="flex:1;">
-        <div style="font-size:11px;color:#8E8E93;margin-bottom:4px;">EINZELPREIS €</div>
-        <input id="inv-m-preis" placeholder="0.00" type="number" min="0" step="0.01"
-          style="width:100%;border:1px solid #E5E5EA;border-radius:10px;padding:10px 12px;font-size:15px;outline:none;box-sizing:border-box;">
-      </div>
-    </div>
-    <div style="display:flex;gap:8px;margin-bottom:16px;">
-      <div style="flex:1;">
-        <div style="font-size:11px;color:#8E8E93;margin-bottom:4px;">RABATT %</div>
-        <input id="inv-m-rabatt" placeholder="0" type="number" min="0" max="100"
-          style="width:100%;border:1px solid #E5E5EA;border-radius:10px;padding:10px 12px;font-size:15px;outline:none;box-sizing:border-box;">
-      </div>
-      <div style="flex:1;">
-        <div style="font-size:11px;color:#8E8E93;margin-bottom:4px;">SKONTO %</div>
-        <input id="inv-m-skonto" placeholder="0" type="number" min="0" max="100"
-          style="width:100%;border:1px solid #E5E5EA;border-radius:10px;padding:10px 12px;font-size:15px;outline:none;box-sizing:border-box;">
-      </div>
-      <div style="flex:1;">
-        <div style="font-size:11px;color:#8E8E93;margin-bottom:4px;">WEITERER % </div>
-        <input id="inv-m-extra" placeholder="0" type="number" min="0" max="100"
-          style="width:100%;border:1px solid #E5E5EA;border-radius:10px;padding:10px 12px;font-size:15px;outline:none;box-sizing:border-box;">
-      </div>
-    </div>
-    <div style="display:flex;gap:8px;">
-      <button onclick="invModalClose()" style="flex:1;background:#F2F2F7;border:none;border-radius:12px;padding:13px;font-size:15px;cursor:pointer;">Abbrechen</button>
-      <button onclick="invModalSave()" style="flex:2;background:#1C1C1E;color:#fff;border:none;border-radius:12px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;">Speichern</button>
-    </div>
   </div>
 </div>
 
@@ -1500,6 +1539,7 @@ function openAddModal(preZone, preCatId) {
   document.getElementById('fReorder').value = '2';
   document.getElementById('fSoll').value = '0';
   document.getElementById('fNote').value = '';
+  invStammdatenInsFormular({});
   const zone = preZone || 'geschaeft';
   document.getElementById('fLocation').value = zone;
   populateSubcatSelect(zone, preCatId || '');
@@ -1515,6 +1555,7 @@ function openEditModal(id) {
   document.getElementById('fName').value = p.name;
   document.getElementById('fUnit').value = p.unit||'';
   document.getElementById('fNote').value = p.note||'';
+  invStammdatenInsFormular(p);
   document.getElementById('fReorder').value = p.reorder_point;
   const loc = p.zones.length>1?'beide':p.zones[0]==='keller'?'keller':'geschaeft';
   document.getElementById('fLocation').value = loc;
@@ -1537,6 +1578,8 @@ function saveProduct() {
   const subcatId = document.getElementById('fSubcat').value || null;
   const soll = parseInt(document.getElementById('fSoll').value)||0;
   const editId = document.getElementById('editId').value;
+  const inv = invStammdatenAusFormular(editId);
+  if (!inv) return;
 
   if (editId) {
     const p = db.products.find(x=>x.id===editId);
@@ -1544,6 +1587,7 @@ function saveProduct() {
     p.name=name; p.unit=document.getElementById('fUnit').value.trim();
     p.note=document.getElementById('fNote').value.trim();
     p.reorder_point=reorder; p.zones=zones; p.subcatId=subcatId;
+    Object.assign(p, inv);
     if (!p.soll_bestand) p.soll_bestand={};
     zones.forEach(z=>{ if(p.stock[z]===undefined) { p.stock[z]=stock; p.stock_erfasst=true; } p.soll_bestand[z]=soll; });
     toast('Produkt aktualisiert ✓','success');
@@ -1552,7 +1596,7 @@ function saveProduct() {
     zones.forEach(z=>{ stockObj[z]=stock; sollObj[z]=soll; });
     db.products.push({ id:genId(), name, unit:document.getElementById('fUnit').value.trim(),
       note:document.getElementById('fNote').value.trim(), zones, stock:stockObj,
-      reorder_point:reorder, soll_bestand:sollObj, subcatId, stock_erfasst:true, created_at:new Date().toISOString() });
+      reorder_point:reorder, soll_bestand:sollObj, subcatId, stock_erfasst:true, created_at:new Date().toISOString(), ...inv });
     toast('Produkt hinzugefügt ✓','success');
   }
   saveData(db); closeModal('modalAdd'); render();
@@ -1772,6 +1816,10 @@ function renderExcelMapper() {
   const gStockK=guess(['keller','lager','depot']);
   const gReorder=guess(['nachbestell','reorder','mindest','min']);
   const gNote=guess(['notiz','note','kommentar','info']);
+  const gBarcode=guess(['barcode','ean','gtin']);
+  const gFirma=guess(['firma','hersteller','lieferant']);
+  const gPreisGeb=guess(['gebindepreis','bruttopreis','preis']);
+  const gStueckGeb=guess(['stück pro','stk pro','stück/geb','stk/geb','inhalt','stück je','stk je']);
 
   function sel(id,pre){
     return `<select id="map_${id}" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font:inherit;font-size:13px;background:var(--bg)">
@@ -1785,19 +1833,35 @@ function renderExcelMapper() {
 
   body.innerHTML=`
     <p style="font-size:13px;color:var(--mid);margin-bottom:8px"><strong>${excelRows.length} Zeilen</strong> · ${excelHeaders.length} Spalten gefunden.<br>Ordne zu, welche Spalte was bedeutet:</p>
+    <div class="field">
+      <label>Was soll der Import tun?</label>
+      <select id="map_modus" onchange="excelModusGeaendert()" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font:inherit;font-size:13px;background:var(--bg)">
+        <option value="neu">Neue Produkte anlegen</option>
+        <option value="inventur">Inventurdaten bei bestehenden Produkten ergänzen</option>
+      </select>
+      <div id="map_modus_hinweis" style="display:none;font-size:12px;color:var(--mid);margin-top:4px">
+        Bestehende Produkte werden über den Barcode oder den genauen Produktnamen gefunden. Es werden nur Barcode, Firma, Bruttopreis und Stück pro Gebinde geändert – nichts wird neu angelegt.
+      </div>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div class="field"><label>Produktname *</label>${sel('name',gName)}</div>
+      <div class="field"><label>Barcode</label>${sel('barcode',gBarcode)}</div>
+      <div class="field"><label>Produktfirma (Loreal / Nashi Argan / Goldwell / Wella)</label>${sel('firma',gFirma)}</div>
+      <div class="field"><label>Bruttopreis pro Gebinde</label>${sel('preisGeb',gPreisGeb)}</div>
+      <div class="field"><label>Stück pro Gebinde</label>${sel('stueckGeb',gStueckGeb)}</div>
+    </div>
+    <div class="map-nur-neu" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div class="field"><label>Einheit</label>${sel('unit',gUnit)}</div>
       <div class="field"><label>Bestand Geschäft</label>${sel('stockG',gStockG)}</div>
       <div class="field"><label>Bestand Keller</label>${sel('stockK',gStockK)}</div>
       <div class="field"><label>Nachbestellpunkt</label>${sel('reorder',gReorder)}</div>
       <div class="field"><label>Notiz</label>${sel('note',gNote)}</div>
     </div>
-    <div class="field" style="margin-top:8px">
+    <div class="field map-nur-neu" style="margin-top:8px">
       <label>Unterkategorie zuweisen</label>
       <select id="map_subcat" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font:inherit;font-size:13px;background:var(--bg)">${catOpts}</select>
     </div>
-    <div class="field" style="margin-top:4px">
+    <div class="field map-nur-neu" style="margin-top:4px">
       <label>Standort (wenn keine Bestandsspalte)</label>
       <select id="map_zone" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font:inherit;font-size:13px;background:var(--bg)">
         <option value="beide">Beide</option><option value="geschaeft">Nur Geschäft</option><option value="keller">Nur Keller</option>
@@ -1822,11 +1886,20 @@ function applyExcelImport() {
   const iNote=document.getElementById('map_note')?.value;
   const iSubcat=document.getElementById('map_subcat')?.value||null;
   const fallbackZone=document.getElementById('map_zone')?.value||'beide';
+  const invSpalten={
+    barcode:document.getElementById('map_barcode')?.value??'',
+    firma:document.getElementById('map_firma')?.value??'',
+    preis:document.getElementById('map_preisGeb')?.value??'',
+    stueck:document.getElementById('map_stueckGeb')?.value??''
+  };
+  if (document.getElementById('map_modus')?.value==='inventur') { excelInventurdatenErgaenzen(iName, invSpalten); return; }
   if (iName===''){toast('Bitte Produktname zuordnen.','error');return;}
   let added=0, skipped=0;
-  excelRows.forEach(row=>{
+  const hinweise=[];
+  excelRows.forEach((row,ri)=>{
     const name=String(row[iName]??'').trim();
     if (!name){skipped++;return;}
+    const inv=excelInventurwerte(row, invSpalten, null, hinweise, ri+2);
     const unit=iUnit!==''?String(row[iUnit]??'').trim():'';
     const reorder=iReorder!==''?parseInt(row[iReorder])||0:2;
     const note=iNote!==''?String(row[iNote]??'').trim():'';
@@ -1839,11 +1912,12 @@ function applyExcelImport() {
     else if(hasG){zones=['geschaeft'];stockObj={geschaeft:stockG};}
     else if(hasK){zones=['keller'];stockObj={keller:stockK};}
     else{zones=fallbackZone==='beide'?['geschaeft','keller']:[fallbackZone];zones.forEach(z=>stockObj[z]=0);}
-    db.products.push({id:genId(),name,unit,note,zones,stock:stockObj,reorder_point:reorder,subcatId:iSubcat||null,created_at:new Date().toISOString()});
+    db.products.push({id:genId(),name,unit,note,zones,stock:stockObj,reorder_point:reorder,subcatId:iSubcat||null,created_at:new Date().toISOString(),...inv});
     added++;
   });
   saveData(db); closeModal('modalExcel'); render();
   toast(`${added} Produkte importiert${skipped?`, ${skipped} übersprungen`:''} ✓`,'success');
+  if (hinweise.length) excelHinweiseZeigen(`${added} Produkte importiert`, hinweise);
 }
 
 // ═══════════════════════════════════════
@@ -2331,155 +2405,621 @@ function lagerNotizMikro() {
 
 
 // ── INVENTUR ──
-var invGruppen = JSON.parse(localStorage.getItem('lager-inventur-v2') || '[]');
-var invEditIdx = -1;
+// Zählung je Ort (Geschäft / Lager = bisheriger Keller) in Supabase.
+// Rechte (zählen: alle Angemeldeten; abschließen, wieder öffnen, Auswertung/CSV: nur Chefin)
+// setzt die Datenbank durch, siehe supabase/migrations/20261011120000_lager_inventur.sql.
+// Die Knöpfe hier werden nur ein-/ausgeblendet.
+const INV_FIRMEN = ['Loreal', 'Nashi Argan', 'Goldwell', 'Wella'];
+const INV_ABZUEGE = [0.30, 0.20, 0.03];   // nacheinander, fix für alle Firmen (V1)
+const INV_ORTE = { geschaeft: 'Geschäft', lager: 'Lager' };
+const INV_SCANNER_URL = 'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js';
+const INV_SCANNER_SRI = 'sha384-c9d8RFSL+u3exBOJ4Yp3HUJXS4znl9f+z66d1y54ig+ea249SpqR+w1wyvXz/lk+';
 
-function invSave() {
-  localStorage.setItem('lager-inventur-v2', JSON.stringify(invGruppen));
+let invListe = [];          // alle Inventuren, neueste zuerst
+let invAktuell = null;      // ausgewählte Inventur
+let invZaehlungen = [];     // Zählungen der ausgewählten Inventur
+let invIstChefin = false;
+let invFehler = '';
+let invOrt = 'geschaeft';
+let invEintragProdukt = null;
+let invSpeichert = false;
+let invScanner = null, invScanLaeuft = false, invScanGesperrt = false, invPerKamera = false;
+
+// ── Stammdaten (auch für Bearbeiten-Fenster und Excel-Import) ──
+function invBarcodeKey(b) { return String(b ?? '').replace(/\s+/g, '').replace(/^0+/, ''); }
+function invBarcodeText(v) {
+  if (typeof v === 'number') return Number.isFinite(v) ? String(Math.round(v)) : '';
+  return String(v ?? '').replace(/\s+/g, '');
+}
+function invFirmaNormalisieren(v) {
+  const k = String(v ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .trim().replace(/^firma\s+/, '').replace(/[^a-z]/g, '');
+  return INV_FIRMEN.find(f => f.toLowerCase().replace(/[^a-z]/g, '') === k) || null;
+}
+function invZahl(v) {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : NaN;
+  let t = String(v ?? '').replace(/[€\s]/g, '');
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+  return /^\d+(\.\d+)?$/.test(t) ? parseFloat(t) : NaN;
+}
+function invFehlendeStammdaten(p) {
+  const f = [];
+  if (!invBarcodeKey(p.barcode)) f.push('Barcode');
+  if (!INV_FIRMEN.includes(p.firma)) f.push('Produktfirma');
+  if (!(Number.isFinite(p.preis_gebinde) && p.preis_gebinde >= 0)) f.push('Bruttopreis pro Gebinde');
+  if (!(Number.isInteger(p.stueck_gebinde) && p.stueck_gebinde >= 1)) f.push('Stück pro Gebinde');
+  return f;
+}
+function invStammdatenVollstaendig(p) { return !!p && invFehlendeStammdaten(p).length === 0; }
+function invProduktMitBarcode(code, ausserId) {
+  const k = invBarcodeKey(code);
+  if (!k) return null;
+  return db.products.find(p => p.id !== ausserId && invBarcodeKey(p.barcode) === k) || null;
 }
 
-function invCalc(g) {
-  const brutto = (parseFloat(g.anzahl)||0) * (parseFloat(g.preis)||0);
-  const nachRabatt = brutto * (1 - (parseFloat(g.rabatt)||0)/100);
-  const nachSkonto = nachRabatt * (1 - (parseFloat(g.skonto)||0)/100);
-  const final = nachSkonto * (1 - (parseFloat(g.extra)||0)/100);
-  return { brutto, nachRabatt, nachSkonto, final };
+function invStammdatenInsFormular(p) {
+  const firma = INV_FIRMEN.includes(p.firma) ? p.firma : '';
+  document.getElementById('fBarcode').value = p.barcode || '';
+  document.getElementById('fFirma').innerHTML = '<option value="">– bitte wählen –</option>'
+    + INV_FIRMEN.map(f => `<option value="${esc(f)}"${f === firma ? ' selected' : ''}>${esc(f)}</option>`).join('');
+  document.getElementById('fPreisGebinde').value = Number.isFinite(p.preis_gebinde) ? p.preis_gebinde : '';
+  document.getElementById('fStueckGebinde').value = Number.isInteger(p.stueck_gebinde) ? p.stueck_gebinde : '';
 }
 
+// Inventurdaten aus dem Bearbeiten-Fenster lesen und prüfen; null = ungültig (Meldung per Toast)
+function invStammdatenAusFormular(editId) {
+  const barcode = invBarcodeText(document.getElementById('fBarcode').value);
+  const firma = document.getElementById('fFirma').value;
+  const preisRaw = document.getElementById('fPreisGebinde').value.trim();
+  const stueckRaw = document.getElementById('fStueckGebinde').value.trim();
+  if (barcode) {
+    const anderes = invProduktMitBarcode(barcode, editId);
+    if (anderes) { toast(`Barcode ist schon bei „${anderes.name}“ eingetragen.`, 'error'); return null; }
+  }
+  if (firma && !INV_FIRMEN.includes(firma)) { toast('Bitte eine der vier Produktfirmen wählen.', 'error'); return null; }
+  let preis = null, stueck = null;
+  if (preisRaw !== '') {
+    preis = invZahl(preisRaw);
+    if (!Number.isFinite(preis)) { toast('Bruttopreis pro Gebinde ist ungültig.', 'error'); return null; }
+    preis = invCent(preis) / 100;
+  }
+  if (stueckRaw !== '') {
+    stueck = Number(stueckRaw);
+    if (!Number.isInteger(stueck) || stueck < 1) { toast('Stück pro Gebinde muss eine ganze Zahl ab 1 sein.', 'error'); return null; }
+  }
+  return { barcode, firma: firma || null, preis_gebinde: preis, stueck_gebinde: stueck };
+}
+
+// ── Excel-Import: Inventurdaten ──
+function excelModusGeaendert() {
+  const inv = document.getElementById('map_modus').value === 'inventur';
+  document.getElementById('map_modus_hinweis').style.display = inv ? 'block' : 'none';
+  document.querySelectorAll('#excelBody .map-nur-neu').forEach(el => {
+    el.style.display = inv ? 'none' : (el.classList.contains('field') ? 'flex' : 'grid');
+  });
+}
+
+// Inventurwerte einer Excel-Zeile; ungültige Werte werden nicht übernommen, sondern gemeldet
+function excelInventurwerte(row, sp, ausserId, hinweise, zeile) {
+  const inv = {};
+  const zelle = i => (i === '' ? '' : String(row[i] ?? '').trim());
+  if (zelle(sp.barcode)) {
+    const b = invBarcodeText(row[sp.barcode]);
+    const anderes = invProduktMitBarcode(b, ausserId);
+    if (anderes) hinweise.push(`Zeile ${zeile}: Barcode ${b} ist schon bei „${anderes.name}“ eingetragen – nicht übernommen`);
+    else inv.barcode = b;
+  }
+  if (zelle(sp.firma)) {
+    const f = invFirmaNormalisieren(row[sp.firma]);
+    if (f) inv.firma = f;
+    else hinweise.push(`Zeile ${zeile}: „${zelle(sp.firma)}“ ist keine der vier Produktfirmen – nicht übernommen`);
+  }
+  if (zelle(sp.preis)) {
+    const pr = invZahl(row[sp.preis]);
+    if (Number.isFinite(pr)) inv.preis_gebinde = invCent(pr) / 100;
+    else hinweise.push(`Zeile ${zeile}: Bruttopreis „${zelle(sp.preis)}“ ist ungültig – nicht übernommen`);
+  }
+  if (zelle(sp.stueck)) {
+    const st = invZahl(row[sp.stueck]);
+    if (Number.isInteger(st) && st >= 1) inv.stueck_gebinde = st;
+    else hinweise.push(`Zeile ${zeile}: Stück pro Gebinde „${zelle(sp.stueck)}“ ist ungültig – nicht übernommen`);
+  }
+  return inv;
+}
+
+// Modus „Inventurdaten ergänzen“: nur bestehende Produkte, nichts wird neu angelegt
+function excelInventurdatenErgaenzen(iName, sp) {
+  if (iName === '' && sp.barcode === '') { toast('Bitte Produktname oder Barcode zuordnen.', 'error'); return; }
+  if (sp.barcode === '' && sp.firma === '' && sp.preis === '' && sp.stueck === '') {
+    toast('Bitte mindestens eine Inventur-Spalte zuordnen.', 'error'); return;
+  }
+  const nameKey = n => String(n ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const nachName = {};
+  db.products.forEach(p => { const k = nameKey(p.name); (nachName[k] = nachName[k] || []).push(p); });
+  let geaendert = 0;
+  const hinweise = [];
+  excelRows.forEach((row, ri) => {
+    const zeile = ri + 2;
+    const b = sp.barcode !== '' ? invBarcodeText(row[sp.barcode]) : '';
+    const name = iName !== '' ? String(row[iName] ?? '').trim() : '';
+    if (!b && !name) return;
+    let p = b ? invProduktMitBarcode(b, null) : null;
+    if (!p && name) {
+      const treffer = nachName[nameKey(name)] || [];
+      if (treffer.length > 1) { hinweise.push(`Zeile ${zeile}: „${name}“ gibt es ${treffer.length}× – bitte im Bearbeiten-Fenster ergänzen`); return; }
+      p = treffer[0] || null;
+    }
+    if (!p) { hinweise.push(`Zeile ${zeile}: ${name ? `„${name}“` : `Barcode ${b}`} nicht gefunden`); return; }
+    const inv = excelInventurwerte(row, sp, p.id, hinweise, zeile);
+    if (Object.keys(inv).length) { Object.assign(p, inv); geaendert++; }
+  });
+  if (geaendert) saveData(db);
+  render();
+  excelHinweiseZeigen(`${geaendert} Produkte ergänzt`, hinweise);
+}
+
+function excelHinweiseZeigen(titel, hinweise) {
+  const max = 50;
+  document.getElementById('excelBody').innerHTML =
+    `<p style="font-size:14px"><strong>${esc(titel)}</strong>${hinweise.length ? ` · ${hinweise.length} Hinweise:` : ' ✓'}</p>`
+    + (hinweise.length
+      ? `<div style="font-size:12px;color:var(--mid);max-height:50vh;overflow-y:auto">`
+        + hinweise.slice(0, max).map(h => `<div style="padding:3px 0;border-bottom:1px solid var(--border)">${esc(h)}</div>`).join('')
+        + (hinweise.length > max ? `<div style="padding-top:6px">… und ${hinweise.length - max} weitere</div>` : '')
+        + `</div>`
+      : '');
+  document.getElementById('excelFooter').innerHTML = `<button class="btn btn-primary" onclick="closeModal('modalExcel')">Schließen</button>`;
+  openModal('modalExcel');
+}
+
+// ── Supabase ──
+async function invApi(pfad, opts = {}) {
+  const { data } = await AUTH_CLIENT.auth.getSession();
+  const token = data?.session?.access_token;
+  if (!token) throw new Error('Nicht angemeldet');
+  const r = await fetch(`${BL_URL}/rest/v1/${pfad}`, {
+    ...opts,
+    headers: { 'apikey': BL_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...(opts.headers || {}) }
+  });
+  const t = await r.text();
+  if (!r.ok) {
+    let j = {};
+    try { j = JSON.parse(t); } catch {}
+    const e = new Error(j.message || t || r.status);
+    e.code = j.code || '';
+    throw e;
+  }
+  return t ? JSON.parse(t) : null;
+}
+function invRpc(fn, args) { return invApi(`rpc/${fn}`, { method: 'POST', body: JSON.stringify(args || {}) }); }
+
+function invFehlerText(e) {
+  const m = String(e?.message || e || '');
+  if (['PGRST202', 'PGRST205', '42P01', '42883'].includes(e?.code))
+    return 'Die Datenbank-Erweiterung für die Inventur ist noch nicht eingespielt (supabase/migrations/20261011120000_lager_inventur.sql).';
+  if (/Nur die Chefin/.test(m)) return 'Das darf nur die Chefin.';
+  if (/row-level security/i.test(m)) return 'Nicht gespeichert – die Inventur ist nicht mehr offen.';
+  if (/Nicht angemeldet/.test(m)) return 'Bitte neu anmelden.';
+  return 'Fehler: ' + m;
+}
+
+async function invLaden(auswahlId) {
+  invFehler = '';
+  try {
+    const [liste, chefin] = await Promise.all([
+      invApi('lager_inventuren?select=*&order=angelegt_am.desc'),
+      invRpc('lager_ist_chefin').catch(() => false)
+    ]);
+    invListe = liste || [];
+    invIstChefin = chefin === true;
+    const id = auswahlId || invAktuell?.id;
+    invAktuell = invListe.find(i => i.id === id) || invListe.find(i => i.status === 'offen') || invListe[0] || null;
+    invZaehlungen = invAktuell
+      ? (await invApi(`lager_inventur_zaehlungen?inventur_id=eq.${encodeURIComponent(invAktuell.id)}&select=*`)) || []
+      : [];
+  } catch (e) {
+    invFehler = invFehlerText(e);
+  }
+  invRender();
+}
+
+function invAuswahlGeaendert() { invLaden(document.getElementById('inv-auswahl').value); }
+
+// ── Berechnung (erst nach Abschluss) ──
+function invCent(x) { return Math.round(Number((x * 100).toPrecision(12))); }
+function invEuro(cent) { return (cent / 100).toLocaleString('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'; }
+function invDatum(d) { const [y, m, t] = String(d || '').split('-'); return t ? `${t}.${m}.${y}` : ''; }
+function invAnzahl(n) { return n === 1 ? '1 Produkt' : `${n} Produkte`; }
+function invZeitpunkt(ts) { return ts ? new Date(ts).toLocaleString('de-AT', { dateStyle: 'medium', timeStyle: 'short' }) : ''; }
+
+// Mengen je Produkt zusammenführen: Geschäft + Lager = Gesamt
+function invProdukteZusammen() {
+  const m = new Map();
+  invZaehlungen.forEach(z => {
+    let e = m.get(z.produkt_id);
+    if (!e) { e = { produkt_id: z.produkt_id, geschaeft: null, lager: null, z }; m.set(z.produkt_id, e); }
+    e[z.ort] = z.menge;
+    if (z.erfasst_am > e.z.erfasst_am) e.z = z;   // jüngste Produktdaten
+  });
+  return [...m.values()].map(e => ({ ...e, gesamt: (e.geschaeft || 0) + (e.lager || 0) }));
+}
+
+function invAuswertung() {
+  const firmen = INV_FIRMEN.map(firma => ({ firma, positionen: [], summeCent: 0 }));
+  let ohneMenge = 0;
+  invProdukteZusammen().forEach(e => {
+    if (e.gesamt <= 0) { ohneMenge++; return; }
+    const z = e.z;
+    const preisGebinde = Number(z.bruttopreis_gebinde);
+    const preisStk = preisGebinde / z.stueck_gebinde;
+    const endStk = INV_ABZUEGE.reduce((w, a) => w * (1 - a), preisStk);
+    const pos = {
+      name: z.produktname, barcode: z.barcode, preisGebindeCent: invCent(preisGebinde), stueck: z.stueck_gebinde,
+      preisStkCent: invCent(preisStk), endStkCent: invCent(endStk),
+      geschaeft: e.geschaeft || 0, lager: e.lager || 0, gesamt: e.gesamt,
+      wertCent: invCent(endStk * e.gesamt)          // genau gerechnet, erst hier auf Cent gerundet
+    };
+    const f = firmen.find(x => x.firma === z.produktfirma);
+    f.positionen.push(pos);
+    f.summeCent += pos.wertCent;
+  });
+  firmen.forEach(f => f.positionen.sort((a, b) => a.name.localeCompare(b.name, 'de')));
+  return { firmen, gesamtCent: firmen.reduce((s, f) => s + f.summeCent, 0), ohneMenge };
+}
+
+// ── Anzeige ──
 function invRender() {
-  const list = document.getElementById('inv-list');
-  const total = document.getElementById('inv-total');
-  const totalRows = document.getElementById('inv-total-rows');
-  if (!list) return;
-
-  if (invGruppen.length === 0) {
-    list.innerHTML = '<div style="text-align:center;padding:32px;color:var(--mid);font-size:14px;">Noch keine Gruppen.<br>Tippe auf \"+ Gruppe\" um zu starten.</div>';
-    if (total) total.style.display = 'none';
+  const sel = document.getElementById('inv-auswahl');
+  const status = document.getElementById('inv-status');
+  const erfassung = document.getElementById('inv-erfassung');
+  const inhalt = document.getElementById('inv-inhalt');
+  if (invFehler) {
+    sel.style.display = 'none';
+    status.innerHTML = `<div class="inv-meldung" style="margin-top:0">${esc(invFehler)}</div>
+      <button class="btn btn-outline btn-sm" style="margin-top:10px" onclick="invLaden()">Erneut versuchen</button>`;
+    erfassung.style.display = 'none';
+    inhalt.innerHTML = '';
     return;
   }
+  sel.style.display = invListe.length ? '' : 'none';
+  sel.innerHTML = invListe.map(i => `<option value="${esc(i.id)}"${i.id === invAktuell?.id ? ' selected' : ''}>`
+    + `Stichtag ${esc(invDatum(i.stichtag))} · ${i.status === 'offen' ? 'offen' : 'abgeschlossen'}</option>`).join('');
 
-  let gesamtBrutto = 0, gesamtFinal = 0;
-
-  list.innerHTML = invGruppen.map((g, i) => {
-    const c = invCalc(g);
-    gesamtBrutto += c.brutto;
-    gesamtFinal += c.final;
-    const rabattInfo = [
-      g.rabatt ? '-'+g.rabatt+'% Rabatt' : '',
-      g.skonto ? '-'+g.skonto+'% Skonto' : '',
-      g.extra  ? '-'+g.extra+'% Extra' : ''
-    ].filter(Boolean).join(' · ');
-
-    return '<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;margin-bottom:10px;overflow:hidden;">'
-      + '<div style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;">'
-      + '<div style="flex:1;min-width:0;">'
-      + '<div style="font-size:15px;font-weight:700;">' + esc(g.name) + '</div>'
-      + '<div style="font-size:12px;color:var(--mid);margin-top:2px;">'
-      + (g.anzahl||0) + ' Stk. × €' + parseFloat(g.preis||0).toFixed(2)
-      + (rabattInfo ? ' · ' + rabattInfo : '')
-      + '</div></div>'
-      + '<div style="text-align:right;flex-shrink:0;">'
-      + '<div style="font-size:16px;font-weight:700;color:var(--gold,#8a6a00);">€' + c.final.toFixed(2) + '</div>'
-      + (c.brutto !== c.final ? '<div style="font-size:11px;color:var(--mid);text-decoration:line-through;">€' + c.brutto.toFixed(2) + '</div>' : '')
-      + '</div>'
-      + '<div style="display:flex;gap:6px;flex-shrink:0;">'
-      + '<button onclick="invEdit(' + i + ')" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:14px;">✏️</button>'
-      + '<button onclick="invDelete(' + i + ')" style="background:#FFF0EE;border:1px solid #FFCCC9;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:14px;">×</button>'
-      + '</div></div></div>';
-  }).join('');
-
-  if (total && totalRows) {
-    total.style.display = 'block';
-    totalRows.innerHTML = '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--mid);margin-bottom:6px;"><span>Bruttowert gesamt</span><span>€' + gesamtBrutto.toFixed(2) + '</span></div>'
-      + '<div style="display:flex;justify-content:space-between;font-size:16px;font-weight:700;border-top:1px solid var(--border);padding-top:8px;margin-top:4px;"><span>Nettowert nach Abzügen</span><span style="color:var(--gold,#8a6a00);">€' + gesamtFinal.toFixed(2) + '</span></div>';
-  }
-}
-
-function invNeuGruppe() {
-  invEditIdx = -1;
-  document.getElementById('inv-modal-title').textContent = 'Gruppe hinzufügen';
-  document.getElementById('inv-m-name').value = '';
-  document.getElementById('inv-m-anzahl').value = '';
-  document.getElementById('inv-m-preis').value = '';
-  document.getElementById('inv-m-rabatt').value = '';
-  document.getElementById('inv-m-skonto').value = '';
-  document.getElementById('inv-m-extra').value = '';
-  document.getElementById('inv-modal').style.display = 'flex';
-  setTimeout(function(){ document.getElementById('inv-m-name').focus(); }, 100);
-}
-
-function invEdit(i) {
-  invEditIdx = i;
-  const g = invGruppen[i];
-  document.getElementById('inv-modal-title').textContent = 'Gruppe bearbeiten';
-  document.getElementById('inv-m-name').value = g.name || '';
-  document.getElementById('inv-m-anzahl').value = g.anzahl || '';
-  document.getElementById('inv-m-preis').value = g.preis || '';
-  document.getElementById('inv-m-rabatt').value = g.rabatt || '';
-  document.getElementById('inv-m-skonto').value = g.skonto || '';
-  document.getElementById('inv-m-extra').value = g.extra || '';
-  document.getElementById('inv-modal').style.display = 'flex';
-}
-
-function invModalClose() {
-  document.getElementById('inv-modal').style.display = 'none';
-}
-
-function invModalSave() {
-  const name = document.getElementById('inv-m-name').value.trim();
-  if (!name) { document.getElementById('inv-m-name').focus(); return; }
-  const g = {
-    name,
-    anzahl: document.getElementById('inv-m-anzahl').value,
-    preis:  document.getElementById('inv-m-preis').value,
-    rabatt: document.getElementById('inv-m-rabatt').value,
-    skonto: document.getElementById('inv-m-skonto').value,
-    extra:  document.getElementById('inv-m-extra').value,
-  };
-  if (invEditIdx >= 0) {
-    invGruppen[invEditIdx] = g;
+  const offen = !!invAktuell && invAktuell.status === 'offen';
+  const gibtOffene = invListe.some(i => i.status === 'offen');
+  let h = '';
+  if (!invAktuell) {
+    h = `<div style="font-size:14px">Noch keine Inventur angelegt.</div>`;
+  } else if (offen) {
+    h = `<div style="font-size:14px"><strong>Offene Inventur</strong> · Stichtag ${esc(invDatum(invAktuell.stichtag))}</div>
+      <div class="inv-klein" style="margin-top:4px">Mengen werden je Ort erfasst. Die Werte werden erst nach dem Abschluss berechnet.</div>`;
+    if (invIstChefin) h += `<button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="invAbschliessen()">✅ Inventur abschließen</button>`;
   } else {
-    invGruppen.push(g);
+    h = `<div style="font-size:14px"><strong>Abgeschlossen</strong> · Stichtag ${esc(invDatum(invAktuell.stichtag))}</div>
+      <div class="inv-klein" style="margin-top:4px">abgeschlossen am ${esc(invZeitpunkt(invAktuell.abgeschlossen_am))}</div>`;
+    if (invIstChefin) h += `<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+        <button class="btn btn-primary" style="flex:2" onclick="invCsvExport()">📥 CSV für Steuerberater</button>
+        <button class="btn btn-outline" style="flex:1" onclick="invWiederOeffnen()"${gibtOffene ? ' disabled title="Es gibt bereits eine offene Inventur"' : ''}>Wieder öffnen</button>
+      </div>`;
   }
-  invSave();
-  invModalClose();
-  invRender();
+  if (!gibtOffene) h += `<button class="btn ${invAktuell ? 'btn-outline' : 'btn-primary'}" style="width:100%;margin-top:12px" onclick="invStarten()">+ Neue Inventur starten</button>`;
+  status.innerHTML = h;
+
+  erfassung.style.display = offen ? '' : 'none';
+  if (!offen) { invScanStoppen(); invEintragSchliessen(); }
+  invOrtButtons();
+  inhalt.innerHTML = !invAktuell ? '' : offen ? invMengenHTML() : invAuswertungHTML();
 }
 
-function invDelete(i) {
-  if (!confirm('Gruppe loeschen?')) return;
-  invGruppen.splice(i, 1);
-  invSave();
-  invRender();
+function invMengenHTML() {
+  const liste = invProdukteZusammen().sort((a, b) =>
+    (INV_FIRMEN.indexOf(a.z.produktfirma) - INV_FIRMEN.indexOf(b.z.produktfirma)) || a.z.produktname.localeCompare(b.z.produktname, 'de'));
+  if (!liste.length) return `<div class="inv-card"><div class="inv-card-body inv-klein">Noch nichts erfasst. Ort wählen und ersten Barcode scannen.</div></div>`;
+  const zahl = v => (v === null ? '–' : v);
+  return `<div class="inv-card">
+    <div class="inv-card-head"><div style="font-weight:700">Erfasst: ${invAnzahl(liste.length)}</div><div class="inv-klein">Antippen zum Korrigieren</div></div>
+    <div class="inv-card-body" style="padding-top:4px">
+      <table class="inv-tabelle">
+        <tr><th>Produkt</th><th>Geschäft</th><th>Lager</th><th>Gesamt</th></tr>
+        ${liste.map(e => `<tr class="inv-zeile" onclick="invEintragOeffnen('${esc(e.produkt_id)}')">
+          <td>${esc(e.z.produktname)}<div class="inv-klein">${esc(e.z.produktfirma)}</div></td>
+          <td>${zahl(e.geschaeft)}</td><td>${zahl(e.lager)}</td><td><strong>${e.gesamt}</strong></td></tr>`).join('')}
+      </table>
+    </div></div>`;
 }
 
-function invReset() {
-  if (!confirm('Gesamte Inventurliste leeren?')) return;
-  invGruppen = [];
-  invSave();
-  invRender();
+function invAuswertungHTML() {
+  if (!invIstChefin) return `<div class="inv-card"><div class="inv-card-body inv-klein">Diese Inventur ist abgeschlossen. Auswertung und Export sieht nur die Chefin.</div></div>`;
+  const a = invAuswertung();
+  const karten = a.firmen.map(f => `<div class="inv-card">
+    <div class="inv-card-head"><div style="font-weight:700">${esc(f.firma)}</div><div style="font-weight:700">${invEuro(f.summeCent)}</div></div>
+    <div class="inv-card-body" style="padding-top:4px">
+      ${f.positionen.length ? `<table class="inv-tabelle">
+        <tr><th>Produkt</th><th>Menge</th><th>Wert</th></tr>
+        ${f.positionen.map(p => `<tr>
+          <td>${esc(p.name)}<div class="inv-klein">Geschäft ${p.geschaeft} · Lager ${p.lager} · ${invEuro(p.endStkCent)}/Stk.</div></td>
+          <td>${p.gesamt}</td><td>${invEuro(p.wertCent)}</td></tr>`).join('')}
+        <tr class="inv-summe"><td>Summe ${esc(f.firma)}</td><td></td><td>${invEuro(f.summeCent)}</td></tr>
+      </table>` : `<div class="inv-klein">Keine Produkte gezählt.</div>`}
+    </div></div>`).join('');
+  return karten + `<div class="inv-card" style="border-color:var(--gold)"><div class="inv-card-body">
+      <div class="inv-gesamt"><span>Gesamtsumme</span><span>${invEuro(a.gesamtCent)}</span></div>
+      <div class="inv-klein" style="margin-top:4px">Bruttopreis pro Stück abzüglich 30 %, 20 % und 3 % (nacheinander) × Gesamtmenge${a.ohneMenge ? ` · ${invAnzahl(a.ohneMenge)} mit Menge 0 nicht enthalten` : ''}</div>
+    </div></div>`;
 }
 
-function invExportExcel() {
-  if (!window.XLSX) { alert('Excel nicht verfuegbar'); return; }
-  const data = [['Gruppe','Anzahl','Einzelpreis EUR','Rabatt %','Skonto %','Weiterer %','Brutto EUR','Netto EUR']];
-  invGruppen.forEach(function(g) {
-    const c = invCalc(g);
-    data.push([g.name, g.anzahl||0, g.preis||0, g.rabatt||0, g.skonto||0, g.extra||0, c.brutto.toFixed(2), c.final.toFixed(2)]);
+function invMeldung(text) {
+  const el = document.getElementById('inv-meldung');
+  el.textContent = text || '';
+  el.style.display = text ? '' : 'none';
+}
+
+function invOrtWaehlen(ort) {
+  invOrt = ort;
+  invOrtButtons();
+  if (invEintragProdukt) invEintragOeffnen(invEintragProdukt.id);
+}
+function invOrtButtons() {
+  Object.keys(INV_ORTE).forEach(o => document.getElementById('inv-ort-' + o).classList.toggle('active', o === invOrt));
+}
+
+// ── Statuswechsel ──
+async function invStarten() {
+  if (!confirm('Neue Inventur mit Stichtag heute starten?')) return;
+  try {
+    const r = await invRpc('lager_inventur_starten');
+    toast('Inventur gestartet ✓');
+    await invLaden(r?.id);
+  } catch (e) { toast(invFehlerText(e), 'error'); }
+}
+
+// Vor dem Abschluss die mitgeschriebenen Produktdaten auf den aktuellen Stand bringen
+async function invProduktdatenAuffrischen() {
+  invZaehlungen = (await invApi(`lager_inventur_zaehlungen?inventur_id=eq.${encodeURIComponent(invAktuell.id)}&select=*`)) || [];
+  for (const e of invProdukteZusammen()) {
+    const p = db.products.find(x => x.id === e.produkt_id);
+    if (!invStammdatenVollstaendig(p)) continue;
+    const neu = { barcode: p.barcode, produktname: p.name, produktfirma: p.firma, bruttopreis_gebinde: p.preis_gebinde, stueck_gebinde: p.stueck_gebinde };
+    const veraltet = invZaehlungen.some(z => z.produkt_id === p.id && (z.barcode !== neu.barcode || z.produktname !== neu.produktname
+      || z.produktfirma !== neu.produktfirma || Number(z.bruttopreis_gebinde) !== neu.bruttopreis_gebinde || z.stueck_gebinde !== neu.stueck_gebinde));
+    if (!veraltet) continue;
+    await invApi(`lager_inventur_zaehlungen?inventur_id=eq.${encodeURIComponent(invAktuell.id)}&produkt_id=eq.${encodeURIComponent(p.id)}`,
+      { method: 'PATCH', headers: { 'Prefer': 'return=minimal' }, body: JSON.stringify(neu) });
+  }
+}
+
+async function invAbschliessen() {
+  if (!invAktuell || invAktuell.status !== 'offen') return;
+  const anzahl = invProdukteZusammen().length;
+  if (!confirm(`Inventur abschließen?\n\n${invAnzahl(anzahl)} erfasst. Danach kann nicht mehr gezählt werden. Wieder öffnen kann nur die Chefin.`)) return;
+  const id = invAktuell.id;
+  try {
+    invScanStoppen();
+    await invProduktdatenAuffrischen();
+    await invRpc('lager_inventur_abschliessen', { p_id: id });
+    toast('Inventur abgeschlossen ✓');
+  } catch (e) { toast(invFehlerText(e), 'error'); }
+  await invLaden(id);
+}
+
+async function invWiederOeffnen() {
+  if (!invAktuell || invAktuell.status !== 'abgeschlossen') return;
+  if (!confirm(`Inventur vom ${invDatum(invAktuell.stichtag)} wieder öffnen? Dann kann wieder gezählt werden; die Auswertung entsteht beim nächsten Abschluss neu.`)) return;
+  const id = invAktuell.id;
+  try {
+    await invRpc('lager_inventur_wieder_oeffnen', { p_id: id });
+    toast('Inventur wieder offen');
+  } catch (e) { toast(invFehlerText(e), 'error'); }
+  await invLaden(id);
+}
+
+// ── Erfassen ──
+function invBarcodeErkannt(code) {
+  invMeldung('');
+  const p = invProduktMitBarcode(code, null);
+  if (!p) { invMeldung(`Barcode ${code} ist keinem Produkt zugeordnet. Bitte zuerst im Lager-Tab beim Produkt eintragen.`); return; }
+  if (!invStammdatenVollstaendig(p)) {
+    invMeldung(`„${p.name}“: Inventurdaten unvollständig (fehlt: ${invFehlendeStammdaten(p).join(', ')}). Bitte im Lager-Tab ergänzen.`);
+    return;
+  }
+  invEintragOeffnen(p.id);
+}
+
+function invBarcodeManuell() {
+  const el = document.getElementById('inv-barcode-eingabe');
+  const code = invBarcodeText(el.value);
+  if (!code) return;
+  el.value = '';
+  invScanStoppen();
+  invBarcodeErkannt(code);
+}
+
+function invEintragOeffnen(produktId) {
+  let p = db.products.find(x => x.id === produktId);
+  if (!invStammdatenVollstaendig(p)) {
+    // z. B. Produkt inzwischen gelöscht: mit den mitgeschriebenen Daten korrigieren
+    const z = invZaehlungen.find(x => x.produkt_id === produktId);
+    if (!z) return;
+    p = { id: produktId, name: z.produktname, barcode: z.barcode, firma: z.produktfirma,
+      preis_gebinde: Number(z.bruttopreis_gebinde), stueck_gebinde: z.stueck_gebinde };
+  }
+  invEintragProdukt = p;
+  invMeldung('');
+  const anderer = invOrt === 'geschaeft' ? 'lager' : 'geschaeft';
+  const hier = invZaehlungen.find(z => z.produkt_id === p.id && z.ort === invOrt);
+  const dort = invZaehlungen.find(z => z.produkt_id === p.id && z.ort === anderer);
+  document.getElementById('inv-eintrag-info').innerHTML =
+    `<div style="font-size:16px;font-weight:700">${esc(p.name)}</div>
+     <div class="inv-klein">${esc(p.firma)} · Barcode ${esc(p.barcode)} · ${p.stueck_gebinde} Stk. pro Gebinde</div>`
+    + (hier ? `<div class="inv-meldung" style="background:var(--gold-lt);color:var(--deep)">Im ${INV_ORTE[invOrt]} schon erfasst: <strong>${hier.menge} Stk.</strong> – die neue Zahl ersetzt die alte.</div>` : '')
+    + (dort ? `<div class="inv-klein" style="margin-top:6px">${INV_ORTE[anderer]}: ${dort.menge} Stk. erfasst</div>` : '');
+  document.getElementById('inv-eintrag-label').textContent = `Einzelstücke im ${INV_ORTE[invOrt]}`;
+  const input = document.getElementById('inv-eintrag-menge');
+  input.value = hier ? hier.menge : '';
+  document.getElementById('inv-eintrag-entfernen').style.display = hier ? '' : 'none';
+  const karte = document.getElementById('inv-eintrag');
+  karte.style.display = '';
+  karte.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  setTimeout(() => input.focus(), 150);
+}
+
+function invEintragSchliessen() {
+  invEintragProdukt = null;
+  const karte = document.getElementById('inv-eintrag');
+  if (karte) karte.style.display = 'none';
+}
+
+async function invEintragSpeichern() {
+  const p = invEintragProdukt;
+  if (!p || !invAktuell || invSpeichert) return;
+  const raw = document.getElementById('inv-eintrag-menge').value.trim();
+  const menge = Number(raw);
+  if (raw === '' || !Number.isInteger(menge) || menge < 0) { toast('Bitte eine ganze Stückzahl eingeben (0 oder mehr).', 'error'); return; }
+  const ort = invOrt;
+  const zeile = { inventur_id: invAktuell.id, produkt_id: p.id, ort, menge, barcode: p.barcode, produktname: p.name,
+    produktfirma: p.firma, bruttopreis_gebinde: p.preis_gebinde, stueck_gebinde: p.stueck_gebinde };
+  invSpeichert = true;
+  try {
+    const res = await invApi('lager_inventur_zaehlungen?on_conflict=inventur_id,produkt_id,ort', {
+      method: 'POST', headers: { 'Prefer': 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify(zeile)
+    });
+    invZaehlungen = invZaehlungen.filter(z => !(z.produkt_id === p.id && z.ort === ort)).concat(res || []);
+    toast(`${p.name}: ${menge} Stk. im ${INV_ORTE[ort]} ✓`);
+    invEintragSchliessen();
+    document.getElementById('inv-inhalt').innerHTML = invMengenHTML();
+    if (invPerKamera) invScanStarten();
+  } catch (e) {
+    toast(invFehlerText(e), 'error');
+    if (/row-level security/i.test(String(e?.message))) invLaden();
+  } finally {
+    invSpeichert = false;
+  }
+}
+
+async function invEintragEntfernen() {
+  const p = invEintragProdukt;
+  if (!p || !invAktuell) return;
+  const ort = invOrt;
+  if (!confirm(`Erfassung von „${p.name}“ im ${INV_ORTE[ort]} entfernen?`)) return;
+  try {
+    await invApi(`lager_inventur_zaehlungen?inventur_id=eq.${encodeURIComponent(invAktuell.id)}&produkt_id=eq.${encodeURIComponent(p.id)}&ort=eq.${ort}`,
+      { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
+    invZaehlungen = invZaehlungen.filter(z => !(z.produkt_id === p.id && z.ort === ort));
+    toast('Eintrag entfernt');
+    invEintragSchliessen();
+    document.getElementById('inv-inhalt').innerHTML = invMengenHTML();
+  } catch (e) { toast(invFehlerText(e), 'error'); }
+}
+
+// ── Kamera-Scan (html5-qrcode, wird erst beim ersten Scan geladen) ──
+function invScannerLaden() {
+  if (window.Html5Qrcode) return Promise.resolve();
+  return new Promise((ok, fehler) => {
+    const s = document.createElement('script');
+    s.src = INV_SCANNER_URL;
+    s.integrity = INV_SCANNER_SRI;
+    s.crossOrigin = 'anonymous';
+    s.onload = ok;
+    s.onerror = () => fehler(new Error('Scanner konnte nicht geladen werden'));
+    document.head.appendChild(s);
   });
-  const ws = XLSX.utils.aoa_to_sheet(data);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Inventur');
-  XLSX.writeFile(wb, 'Inventur_' + new Date().toISOString().slice(0,10) + '.xlsx');
 }
 
-// Nach switchTab: Notiz + Inventur rendern
+async function invScanStarten() {
+  invMeldung('');
+  invEintragSchliessen();
+  if (invScanLaeuft) return;
+  const box = document.getElementById('inv-scan-box');
+  invScanLaeuft = true;
+  invPerKamera = true;
+  try {
+    await invScannerLaden();
+    if (!invScanner) {
+      const F = Html5QrcodeSupportedFormats;
+      invScanner = new Html5Qrcode('inv-scan-view', {
+        verbose: false,
+        formatsToSupport: [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128],
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+      });
+    }
+    box.style.display = '';
+    await invScanner.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: (w, h) => ({ width: Math.max(50, Math.floor(Math.min(w * 0.9, 360))), height: Math.max(50, Math.floor(Math.min(h * 0.45, 160))) }) },
+      code => invScanTreffer(code),
+      () => {}
+    );
+  } catch (e) {
+    invScanLaeuft = false;
+    invPerKamera = false;
+    box.style.display = 'none';
+    invMeldung(`Kamera nicht verfügbar (${e?.message || e}). Der Barcode kann auch eingetippt werden.`);
+  }
+}
+
+async function invScanTreffer(code) {
+  if (invScanGesperrt) return;
+  invScanGesperrt = true;
+  if (navigator.vibrate) navigator.vibrate(80);
+  await invScanStoppen(true);
+  invScanGesperrt = false;
+  invBarcodeErkannt(invBarcodeText(code));
+}
+
+// kameraModusBehalten: nach dem Speichern automatisch weiterscannen
+async function invScanStoppen(kameraModusBehalten) {
+  if (kameraModusBehalten !== true) invPerKamera = false;
+  const box = document.getElementById('inv-scan-box');
+  if (box) box.style.display = 'none';
+  if (invScanner && invScanLaeuft) {
+    invScanLaeuft = false;
+    try { await invScanner.stop(); } catch {}
+  }
+}
+
+// ── CSV für den Steuerberater (nur Produkte mit Menge > 0) ──
+function invCsvFeld(v) {
+  let t = String(v ?? '');
+  if (typeof v === 'string' && /^[=+\-@]/.test(t)) t = "'" + t;   // keine Formeln in Excel
+  return /[";\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+}
+function invCsvEuro(cent) { return (cent / 100).toFixed(2).replace('.', ','); }
+
+function invCsvExport() {
+  if (!invAktuell || invAktuell.status !== 'abgeschlossen') return;
+  const a = invAuswertung();
+  const zeilen = [];
+  const z = (...felder) => zeilen.push(felder.map(invCsvFeld).join(';'));
+  z('Inventur', 'Stichtag ' + invDatum(invAktuell.stichtag));
+  z('Abgeschlossen am', invZeitpunkt(invAktuell.abgeschlossen_am));
+  z('Berechnung', 'Bruttopreis pro Gebinde / Stück pro Gebinde, abzüglich 30 %, 20 % und 3 % (nacheinander) = Endwert pro Stück; × Gesamtmenge = Gesamtwert');
+  z();
+  z('Produktfirma', 'Barcode', 'Produktname', 'Bruttopreis pro Gebinde (EUR)', 'Stück pro Gebinde', 'Bruttopreis pro Stück (EUR)',
+    'Endwert pro Stück (EUR)', 'Menge Geschäft', 'Menge Lager', 'Gesamtmenge', 'Gesamtwert (EUR)');
+  a.firmen.forEach(f => {
+    f.positionen.forEach(p => z(f.firma, p.barcode, p.name, invCsvEuro(p.preisGebindeCent), p.stueck, invCsvEuro(p.preisStkCent),
+      invCsvEuro(p.endStkCent), p.geschaeft, p.lager, p.gesamt, invCsvEuro(p.wertCent)));
+    z('Summe ' + f.firma, '', '', '', '', '', '', '', '', '', invCsvEuro(f.summeCent));
+  });
+  z();
+  z('Gesamtsumme alle Produktfirmen', '', '', '', '', '', '', '', '', '', invCsvEuro(a.gesamtCent));
+  const blob = new Blob(['﻿' + zeilen.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `Inventur_${invAktuell.stichtag}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 // Nach switchTab: Notiz + Inventur rendern
 const _origSwitchTab = window.switchTab;
 window.switchTab = function(id) {
   _origSwitchTab(id);
   if (id === 'notiz') lagerNotizRender();
-  if (id === 'inventur') invRender();
+  if (id === 'inventur') invLaden(); else invScanStoppen();
 };
 
 </script>
