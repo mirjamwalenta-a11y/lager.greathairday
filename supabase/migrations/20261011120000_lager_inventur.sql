@@ -2,13 +2,16 @@
 --  LAGER · INVENTUR (V1) – Tabellen, RLS und Chefin-Funktionen
 --  Im Supabase SQL-Editor des gemeinsamen Projekts ausführen.
 --  Läuft als EINE Transaktion und ist mehrfach ausführbar.
+--  Enthält den kompletten Stand (Stichtag, Bearbeiten, Löschen) – für die
+--  Einrichtung reicht diese eine Datei. Die Dateien 20261011130000 und
+--  20261011140000 sind nur für Datenbanken mit einer älteren Fassung.
 --
 --  Grundsätze (CLAUDE.md):
 --    * Beide Tabellen haben RLS ab dem Anlegen, anon bekommt nichts.
 --    * Wer Chefin ist, entscheidet die Datenbank (abw_is_owner()),
 --      nie der Browser.
---    * Inventuren werden nie gelöscht oder überschrieben; Status-
---      wechsel nur über SECURITY-DEFINER-Funktionen.
+--    * Inventuren werden nie überschrieben; löschen kann nur die Chefin.
+--      Statuswechsel und Löschen nur über SECURITY-DEFINER-Funktionen.
 --
 --  Fachlich:
 --    * Angemeldete Mitarbeiter:innen dürfen in einer OFFENEN Inventur
@@ -190,5 +193,18 @@ REVOKE ALL ON FUNCTION lager_inventur_ist_offen(uuid), lager_ist_chefin(),
 GRANT EXECUTE ON FUNCTION lager_inventur_ist_offen(uuid), lager_ist_chefin(),
   lager_inventur_starten(date), lager_inventur_stichtag_setzen(uuid, date),
   lager_inventur_abschliessen(uuid), lager_inventur_wieder_oeffnen(uuid) TO authenticated;
+
+-- Inventur endgültig löschen (samt Zählungen): nur die Chefin
+CREATE OR REPLACE FUNCTION lager_inventur_loeschen(p_id uuid) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT abw_is_owner() THEN RAISE EXCEPTION 'Nur die Chefin'; END IF;
+  DELETE FROM lager_inventur_zaehlungen WHERE inventur_id = p_id;
+  DELETE FROM lager_inventuren WHERE id = p_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Inventur nicht gefunden'; END IF;
+END $$;
+
+REVOKE ALL ON FUNCTION lager_inventur_loeschen(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION lager_inventur_loeschen(uuid) TO authenticated;
 
 COMMIT;

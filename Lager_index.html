@@ -2792,6 +2792,7 @@ function invRender() {
         <button class="btn btn-outline" style="flex:1" onclick="invWiederOeffnen()"${gibtOffene ? ' disabled title="Es gibt bereits eine offene Inventur"' : ''}>Wieder öffnen</button>
       </div>`;
   }
+  if (invAktuell && invIstChefin) h += `<button class="btn btn-outline btn-sm" style="width:100%;margin-top:10px;color:#C0392B;border-color:#C0392B" onclick="invLoeschen()">🗑 Diese Inventur löschen</button>`;
   if (!gibtOffene) h += `<div style="margin-top:14px">
       <div class="inv-label">Stichtag der neuen Inventur</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -2927,6 +2928,23 @@ async function invWiederOeffnen() {
     toast('Inventur wieder offen');
   } catch (e) { toast(invFehlerText(e), 'error'); }
   await invLaden(id);
+}
+
+// Inventur endgültig löschen (nur Chefin, serverseitig geprüft)
+async function invLoeschen() {
+  if (!invAktuell || !invIstChefin) return;
+  const eingabe = prompt(`Inventur mit Stichtag ${invDatum(invAktuell.stichtag)} endgültig löschen?\n`
+    + `Alle Zählungen dieser Inventur gehen verloren. Die Produkte im Lager-Tab bleiben.\n\n`
+    + `Zum Bestätigen LÖSCHEN eintippen:`);
+  if (eingabe === null) return;
+  if (eingabe.trim().toUpperCase() !== 'LÖSCHEN') { toast('Nicht gelöscht – Bestätigung stimmte nicht.', 'error'); return; }
+  try {
+    invScanStoppen();
+    await invRpc('lager_inventur_loeschen', { p_id: invAktuell.id });
+    invAktuell = null;
+    toast('Inventur gelöscht');
+  } catch (e) { toast(invFehlerText(e), 'error'); }
+  await invLaden();
 }
 
 // ── Erfassen ──

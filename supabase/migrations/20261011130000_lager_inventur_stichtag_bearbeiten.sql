@@ -1,7 +1,8 @@
 -- ════════════════════════════════════════════════════════════
 --  LAGER · INVENTUR – Stichtag frei wählbar, Chefin bearbeitet auch
 --  abgeschlossene Inventuren.
---  Setzt 20261011120000_lager_inventur.sql voraus.
+--  Nur nötig, wenn 20261011120000_lager_inventur.sql in einer älteren
+--  Fassung (ohne Stichtag-Funktionen) schon eingespielt wurde.
 --  Im Supabase SQL-Editor ausführen. Eine Transaktion, mehrfach ausführbar.
 --
 --    * Neue Inventur mit frei gewähltem Stichtag (alle Angemeldeten).
