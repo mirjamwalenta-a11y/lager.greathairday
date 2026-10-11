@@ -17,7 +17,7 @@ END $pruef$;
 CREATE OR REPLACE FUNCTION lager_inventur_loeschen(p_id uuid) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
-  IF NOT abw_is_owner() THEN RAISE EXCEPTION 'Nur die Chefin'; END IF;
+  IF NOT lager_ist_chefin() THEN RAISE EXCEPTION 'Nur die Chefin'; END IF;
   DELETE FROM lager_inventur_zaehlungen WHERE inventur_id = p_id;
   DELETE FROM lager_inventuren WHERE id = p_id;
   IF NOT FOUND THEN RAISE EXCEPTION 'Inventur nicht gefunden'; END IF;
