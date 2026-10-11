@@ -12,7 +12,10 @@
 --
 --  Fachlich:
 --    * Angemeldete Mitarbeiter:innen dürfen in einer OFFENEN Inventur
---      zählen (anlegen, korrigieren, entfernen).
+--      zählen (anlegen, korrigieren, entfernen). In einer abgeschlossenen
+--      Inventur darf das nur die Chefin.
+--    * Stichtag frei wählbar beim Start; nachträglich ändern nur die Chefin
+--      (siehe auch 20261011130000_lager_inventur_stichtag_bearbeiten.sql).
 --    * Abschließen und Wieder-Öffnen: nur die Chefin.
 --    * Zählungen einer abgeschlossenen Inventur (= Grundlage für
 --      Auswertung und CSV) liest nur die Chefin.
@@ -110,30 +113,45 @@ CREATE POLICY lager_inventur_zaehlungen_lesen ON lager_inventur_zaehlungen
 DROP POLICY IF EXISTS lager_inventur_zaehlungen_anlegen ON lager_inventur_zaehlungen;
 CREATE POLICY lager_inventur_zaehlungen_anlegen ON lager_inventur_zaehlungen
   FOR INSERT TO authenticated
-  WITH CHECK (lager_inventur_ist_offen(inventur_id));
+  WITH CHECK (lager_inventur_ist_offen(inventur_id) OR abw_is_owner());
 
 DROP POLICY IF EXISTS lager_inventur_zaehlungen_aendern ON lager_inventur_zaehlungen;
 CREATE POLICY lager_inventur_zaehlungen_aendern ON lager_inventur_zaehlungen
   FOR UPDATE TO authenticated
-  USING (lager_inventur_ist_offen(inventur_id))
-  WITH CHECK (lager_inventur_ist_offen(inventur_id));
+  USING (lager_inventur_ist_offen(inventur_id) OR abw_is_owner())
+  WITH CHECK (lager_inventur_ist_offen(inventur_id) OR abw_is_owner());
 
 DROP POLICY IF EXISTS lager_inventur_zaehlungen_entfernen ON lager_inventur_zaehlungen;
 CREATE POLICY lager_inventur_zaehlungen_entfernen ON lager_inventur_zaehlungen
   FOR DELETE TO authenticated
-  USING (lager_inventur_ist_offen(inventur_id));
+  USING (lager_inventur_ist_offen(inventur_id) OR abw_is_owner());
 
 -- ── Funktionen für Statuswechsel ───────────────────────────────
 -- Neue Inventur starten (alle Angemeldeten). Gibt es schon eine offene,
 -- wird diese zurückgegeben – es entsteht keine zweite.
-CREATE OR REPLACE FUNCTION lager_inventur_starten() RETURNS lager_inventuren
+DROP FUNCTION IF EXISTS lager_inventur_starten();
+CREATE OR REPLACE FUNCTION lager_inventur_starten(p_stichtag date DEFAULT current_date) RETURNS lager_inventuren
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE r lager_inventuren;
 BEGIN
   IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Nicht angemeldet'; END IF;
   SELECT * INTO r FROM lager_inventuren WHERE status = 'offen';
   IF FOUND THEN RETURN r; END IF;
-  INSERT INTO lager_inventuren (angelegt_von) VALUES (auth.uid()) RETURNING * INTO r;
+  INSERT INTO lager_inventuren (stichtag, angelegt_von)
+  VALUES (coalesce(p_stichtag, current_date), auth.uid())
+  RETURNING * INTO r;
+  RETURN r;
+END $$;
+
+-- Stichtag nachträglich ändern: nur die Chefin
+CREATE OR REPLACE FUNCTION lager_inventur_stichtag_setzen(p_id uuid, p_stichtag date) RETURNS lager_inventuren
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE r lager_inventuren;
+BEGIN
+  IF NOT abw_is_owner() THEN RAISE EXCEPTION 'Nur die Chefin'; END IF;
+  IF p_stichtag IS NULL THEN RAISE EXCEPTION 'Stichtag fehlt'; END IF;
+  UPDATE lager_inventuren SET stichtag = p_stichtag WHERE id = p_id RETURNING * INTO r;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Inventur nicht gefunden'; END IF;
   RETURN r;
 END $$;
 
@@ -167,10 +185,10 @@ BEGIN
 END $$;
 
 REVOKE ALL ON FUNCTION lager_inventur_ist_offen(uuid), lager_ist_chefin(),
-  lager_inventur_starten(), lager_inventur_abschliessen(uuid),
-  lager_inventur_wieder_oeffnen(uuid) FROM PUBLIC, anon;
+  lager_inventur_starten(date), lager_inventur_stichtag_setzen(uuid, date),
+  lager_inventur_abschliessen(uuid), lager_inventur_wieder_oeffnen(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION lager_inventur_ist_offen(uuid), lager_ist_chefin(),
-  lager_inventur_starten(), lager_inventur_abschliessen(uuid),
-  lager_inventur_wieder_oeffnen(uuid) TO authenticated;
+  lager_inventur_starten(date), lager_inventur_stichtag_setzen(uuid, date),
+  lager_inventur_abschliessen(uuid), lager_inventur_wieder_oeffnen(uuid) TO authenticated;
 
 COMMIT;

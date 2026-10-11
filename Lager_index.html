@@ -179,6 +179,8 @@
     font: inherit; font-size: 14px; background: var(--bg); color: var(--deep); }
   .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--gold); background:#fff; }
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .modal .field-row > .field { min-width: 0; }
+  .modal .field-row input, .modal .field-row select { width: 100%; min-width: 0; box-sizing: border-box; }
 
   /* SUBCATEGORY MANAGE LIST */
   .cat-manage-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }
@@ -336,6 +338,9 @@
   .inv-tabelle tr.inv-zeile { cursor: pointer; }
   .inv-tabelle tr.inv-summe td { font-weight: 700; background: var(--bg); }
   .inv-klein { font-size: 11px; color: var(--mid); }
+  .inv-datum { padding: 6px 8px; border: 1.5px solid var(--border); border-radius: 8px; font: inherit; font-size: 14px; background: var(--surface); }
+  .inv-treffer { padding: 10px 4px; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .inv-treffer:hover { background: var(--bg); }
   .inv-gesamt { display: flex; justify-content: space-between; align-items: baseline; font-size: 17px; font-weight: 700; }
 </style>
 </head>
@@ -720,6 +725,79 @@
   </div>
 </div>
 
+<!-- INVENTUR: PRODUKT BEARBEITEN / NEU -->
+<div class="modal-backdrop" id="modalInvEditor">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-head">
+      <h3 id="invEdTitel">Produkt in der Inventur</h3>
+      <button class="modal-close" onclick="closeModal('modalInvEditor')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Produktname *</label>
+        <input type="text" id="invEdName" autocomplete="off">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Barcode *</label>
+          <input type="text" id="invEdBarcode" inputmode="numeric" autocomplete="off">
+        </div>
+        <div class="field">
+          <label>Produktfirma *</label>
+          <select id="invEdFirma"></select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Bruttopreis pro Gebinde (€) *</label>
+          <input type="number" id="invEdPreis" min="0" step="0.01" inputmode="decimal">
+        </div>
+        <div class="field">
+          <label>Stück pro Gebinde *</label>
+          <input type="number" id="invEdStueck" min="1" step="1" inputmode="numeric">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Stück im Geschäft</label>
+          <input type="number" id="invEdGeschaeft" min="0" step="1" inputmode="numeric" placeholder="nicht erfasst">
+        </div>
+        <div class="field">
+          <label>Stück im Lager</label>
+          <input type="number" id="invEdLager" min="0" step="1" inputmode="numeric" placeholder="nicht erfasst">
+        </div>
+      </div>
+      <div class="inv-klein">Leeres Mengenfeld = an diesem Ort nicht erfasst. Name, Barcode, Firma und Preise werden auch im Lager-Tab geändert.</div>
+    </div>
+    <div class="modal-footer">
+      <button id="invEdLoeschen" class="btn btn-outline" style="margin-right:auto;color:#C0392B;border-color:#C0392B" onclick="invEditorLoeschen()">Aus Inventur löschen</button>
+      <button class="btn btn-outline" onclick="closeModal('modalInvEditor')">Abbrechen</button>
+      <button class="btn btn-primary" onclick="invEditorSpeichern()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- INVENTUR: PRODUKT OHNE SCAN HINZUFÜGEN -->
+<div class="modal-backdrop" id="modalInvSuche">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-head">
+      <h3>Produkt hinzufügen</h3>
+      <button class="modal-close" onclick="closeModal('modalInvSuche')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Suche nach Name oder Barcode</label>
+        <input type="text" id="invSucheText" autocomplete="off" oninput="invSucheRender()">
+      </div>
+      <div id="invSucheListe"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalInvSuche')">Abbrechen</button>
+      <button class="btn btn-primary" onclick="invEditorOeffnen(null)">+ Neues Produkt anlegen</button>
+    </div>
+  </div>
+</div>
+
 <!-- BESTELL-VORMERKLISTE HINZUFÜGEN -->
 <div class="modal-backdrop" id="modalBlHinzufuegen">
   <div class="modal" style="max-width:420px">
@@ -829,6 +907,8 @@
             <button class="btn btn-outline" style="flex:1;" onclick="invEintragSchliessen()">Abbrechen</button>
             <button class="btn btn-primary" style="flex:2;" onclick="invEintragSpeichern()">Speichern</button>
           </div>
+          <button class="btn btn-outline" style="width:100%;margin-top:8px;"
+            onclick="invEditorOeffnen(invEintragProdukt && invEintragProdukt.id)">✏️ Alle Daten bearbeiten</button>
           <button id="inv-eintrag-entfernen" class="btn btn-outline" style="width:100%;margin-top:8px;color:#C0392B;border-color:#C0392B;display:none;"
             onclick="invEintragEntfernen()">Eintrag an diesem Ort entfernen</button>
         </div>
@@ -2457,11 +2537,14 @@ function invProduktMitBarcode(code, ausserId) {
   return db.products.find(p => p.id !== ausserId && invBarcodeKey(p.barcode) === k) || null;
 }
 
+function invFirmaOptionen(gewaehlt) {
+  return '<option value="">– bitte wählen –</option>'
+    + INV_FIRMEN.map(f => `<option value="${esc(f)}"${f === gewaehlt ? ' selected' : ''}>${esc(f)}</option>`).join('');
+}
+
 function invStammdatenInsFormular(p) {
-  const firma = INV_FIRMEN.includes(p.firma) ? p.firma : '';
   document.getElementById('fBarcode').value = p.barcode || '';
-  document.getElementById('fFirma').innerHTML = '<option value="">– bitte wählen –</option>'
-    + INV_FIRMEN.map(f => `<option value="${esc(f)}"${f === firma ? ' selected' : ''}>${esc(f)}</option>`).join('');
+  document.getElementById('fFirma').innerHTML = invFirmaOptionen(p.firma);
   document.getElementById('fPreisGebinde').value = Number.isFinite(p.preis_gebinde) ? p.preis_gebinde : '';
   document.getElementById('fStueckGebinde').value = Number.isInteger(p.stueck_gebinde) ? p.stueck_gebinde : '';
 }
@@ -2614,13 +2697,15 @@ async function invLaden(auswahlId) {
     invIstChefin = chefin === true;
     const id = auswahlId || invAktuell?.id;
     invAktuell = invListe.find(i => i.id === id) || invListe.find(i => i.status === 'offen') || invListe[0] || null;
-    invZaehlungen = invAktuell
-      ? (await invApi(`lager_inventur_zaehlungen?inventur_id=eq.${encodeURIComponent(invAktuell.id)}&select=*`)) || []
-      : [];
+    invZaehlungen = invAktuell ? await invZaehlungenLaden() : [];
   } catch (e) {
     invFehler = invFehlerText(e);
   }
   invRender();
+}
+
+async function invZaehlungenLaden() {
+  return (await invApi(`lager_inventur_zaehlungen?inventur_id=eq.${encodeURIComponent(invAktuell.id)}&select=*`)) || [];
 }
 
 function invAuswahlGeaendert() { invLaden(document.getElementById('inv-auswahl').value); }
@@ -2628,6 +2713,7 @@ function invAuswahlGeaendert() { invLaden(document.getElementById('inv-auswahl')
 // ── Berechnung (erst nach Abschluss) ──
 function invCent(x) { return Math.round(Number((x * 100).toPrecision(12))); }
 function invEuro(cent) { return (cent / 100).toLocaleString('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'; }
+function invHeute() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 function invDatum(d) { const [y, m, t] = String(d || '').split('-'); return t ? `${t}.${m}.${y}` : ''; }
 function invAnzahl(n) { return n === 1 ? '1 Produkt' : `${n} Produkte`; }
 function invZeitpunkt(ts) { return ts ? new Date(ts).toLocaleString('de-AT', { dateStyle: 'medium', timeStyle: 'short' }) : ''; }
@@ -2654,7 +2740,7 @@ function invAuswertung() {
     const preisStk = preisGebinde / z.stueck_gebinde;
     const endStk = INV_ABZUEGE.reduce((w, a) => w * (1 - a), preisStk);
     const pos = {
-      name: z.produktname, barcode: z.barcode, preisGebindeCent: invCent(preisGebinde), stueck: z.stueck_gebinde,
+      produkt_id: e.produkt_id, name: z.produktname, barcode: z.barcode, preisGebindeCent: invCent(preisGebinde), stueck: z.stueck_gebinde,
       preisStkCent: invCent(preisStk), endStkCent: invCent(endStk),
       geschaeft: e.geschaeft || 0, lager: e.lager || 0, gesamt: e.gesamt,
       wertCent: invCent(endStk * e.gesamt)          // genau gerechnet, erst hier auf Cent gerundet
@@ -2687,22 +2773,31 @@ function invRender() {
 
   const offen = !!invAktuell && invAktuell.status === 'offen';
   const gibtOffene = invListe.some(i => i.status === 'offen');
+  // Stichtag: Chefin kann ihn jederzeit ändern, alle anderen sehen ihn nur
+  const stichtag = !invAktuell ? '' : invIstChefin
+    ? `<input type="date" class="inv-datum" value="${esc(invAktuell.stichtag)}" onchange="invStichtagSetzen(this.value)" title="Stichtag ändern">`
+    : esc(invDatum(invAktuell.stichtag));
   let h = '';
   if (!invAktuell) {
     h = `<div style="font-size:14px">Noch keine Inventur angelegt.</div>`;
   } else if (offen) {
-    h = `<div style="font-size:14px"><strong>Offene Inventur</strong> · Stichtag ${esc(invDatum(invAktuell.stichtag))}</div>
+    h = `<div style="font-size:14px"><strong>Offene Inventur</strong> · Stichtag ${stichtag}</div>
       <div class="inv-klein" style="margin-top:4px">Mengen werden je Ort erfasst. Die Werte werden erst nach dem Abschluss berechnet.</div>`;
     if (invIstChefin) h += `<button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="invAbschliessen()">✅ Inventur abschließen</button>`;
   } else {
-    h = `<div style="font-size:14px"><strong>Abgeschlossen</strong> · Stichtag ${esc(invDatum(invAktuell.stichtag))}</div>
+    h = `<div style="font-size:14px"><strong>Abgeschlossen</strong> · Stichtag ${stichtag}</div>
       <div class="inv-klein" style="margin-top:4px">abgeschlossen am ${esc(invZeitpunkt(invAktuell.abgeschlossen_am))}</div>`;
     if (invIstChefin) h += `<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
         <button class="btn btn-primary" style="flex:2" onclick="invCsvExport()">📥 CSV für Steuerberater</button>
         <button class="btn btn-outline" style="flex:1" onclick="invWiederOeffnen()"${gibtOffene ? ' disabled title="Es gibt bereits eine offene Inventur"' : ''}>Wieder öffnen</button>
       </div>`;
   }
-  if (!gibtOffene) h += `<button class="btn ${invAktuell ? 'btn-outline' : 'btn-primary'}" style="width:100%;margin-top:12px" onclick="invStarten()">+ Neue Inventur starten</button>`;
+  if (!gibtOffene) h += `<div style="margin-top:14px">
+      <div class="inv-label">Stichtag der neuen Inventur</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input type="date" id="inv-neu-stichtag" class="inv-datum" value="${invHeute()}">
+        <button class="btn ${invAktuell ? 'btn-outline' : 'btn-primary'}" style="flex:1" onclick="invStarten()">+ Neue Inventur starten</button>
+      </div></div>`;
   status.innerHTML = h;
 
   erfassung.style.display = offen ? '' : 'none';
@@ -2711,17 +2806,25 @@ function invRender() {
   inhalt.innerHTML = !invAktuell ? '' : offen ? invMengenHTML() : invAuswertungHTML();
 }
 
+// „Produkt hinzufügen“: offen für alle, abgeschlossen nur für die Chefin
+function invDarfBearbeiten() { return !!invAktuell && (invAktuell.status === 'offen' || invIstChefin); }
+function invHinzufuegenKnopf() {
+  return invDarfBearbeiten()
+    ? `<button class="btn btn-outline" style="width:100%;margin-bottom:14px" onclick="invSucheOeffnen()">+ Produkt ohne Scan hinzufügen</button>`
+    : '';
+}
+
 function invMengenHTML() {
   const liste = invProdukteZusammen().sort((a, b) =>
     (INV_FIRMEN.indexOf(a.z.produktfirma) - INV_FIRMEN.indexOf(b.z.produktfirma)) || a.z.produktname.localeCompare(b.z.produktname, 'de'));
-  if (!liste.length) return `<div class="inv-card"><div class="inv-card-body inv-klein">Noch nichts erfasst. Ort wählen und ersten Barcode scannen.</div></div>`;
+  if (!liste.length) return invHinzufuegenKnopf() + `<div class="inv-card"><div class="inv-card-body inv-klein">Noch nichts erfasst. Ort wählen und ersten Barcode scannen.</div></div>`;
   const zahl = v => (v === null ? '–' : v);
-  return `<div class="inv-card">
-    <div class="inv-card-head"><div style="font-weight:700">Erfasst: ${invAnzahl(liste.length)}</div><div class="inv-klein">Antippen zum Korrigieren</div></div>
+  return invHinzufuegenKnopf() + `<div class="inv-card">
+    <div class="inv-card-head"><div style="font-weight:700">Erfasst: ${invAnzahl(liste.length)}</div><div class="inv-klein">Antippen zum Bearbeiten</div></div>
     <div class="inv-card-body" style="padding-top:4px">
       <table class="inv-tabelle">
         <tr><th>Produkt</th><th>Geschäft</th><th>Lager</th><th>Gesamt</th></tr>
-        ${liste.map(e => `<tr class="inv-zeile" onclick="invEintragOeffnen('${esc(e.produkt_id)}')">
+        ${liste.map(e => `<tr class="inv-zeile" onclick="invEditorOeffnen('${esc(e.produkt_id)}')">
           <td>${esc(e.z.produktname)}<div class="inv-klein">${esc(e.z.produktfirma)}</div></td>
           <td>${zahl(e.geschaeft)}</td><td>${zahl(e.lager)}</td><td><strong>${e.gesamt}</strong></td></tr>`).join('')}
       </table>
@@ -2736,21 +2839,21 @@ function invAuswertungHTML() {
     <div class="inv-card-body" style="padding-top:4px">
       ${f.positionen.length ? `<table class="inv-tabelle">
         <tr><th>Produkt</th><th>Menge</th><th>Wert</th></tr>
-        ${f.positionen.map(p => `<tr>
+        ${f.positionen.map(p => `<tr class="inv-zeile" onclick="invEditorOeffnen('${esc(p.produkt_id)}')">
           <td>${esc(p.name)}<div class="inv-klein">Geschäft ${p.geschaeft} · Lager ${p.lager} · ${invEuro(p.endStkCent)}/Stk.</div></td>
           <td>${p.gesamt}</td><td>${invEuro(p.wertCent)}</td></tr>`).join('')}
         <tr class="inv-summe"><td>Summe ${esc(f.firma)}</td><td></td><td>${invEuro(f.summeCent)}</td></tr>
       </table>` : `<div class="inv-klein">Keine Produkte gezählt.</div>`}
     </div></div>`).join('');
-  return karten + `<div class="inv-card" style="border-color:var(--gold)"><div class="inv-card-body">
+  return invHinzufuegenKnopf() + karten + `<div class="inv-card" style="border-color:var(--gold)"><div class="inv-card-body">
       <div class="inv-gesamt"><span>Gesamtsumme</span><span>${invEuro(a.gesamtCent)}</span></div>
-      <div class="inv-klein" style="margin-top:4px">Bruttopreis pro Stück abzüglich 30 %, 20 % und 3 % (nacheinander) × Gesamtmenge${a.ohneMenge ? ` · ${invAnzahl(a.ohneMenge)} mit Menge 0 nicht enthalten` : ''}</div>
+      <div class="inv-klein" style="margin-top:4px">Zeile antippen zum Bearbeiten. Bruttopreis pro Stück abzüglich 30 %, 20 % und 3 % (nacheinander) × Gesamtmenge${a.ohneMenge ? ` · ${invAnzahl(a.ohneMenge)} mit Menge 0 nicht enthalten` : ''}</div>
     </div></div>`;
 }
 
-function invMeldung(text) {
+function invMeldung(text, knopfHtml) {
   const el = document.getElementById('inv-meldung');
-  el.textContent = text || '';
+  el.innerHTML = esc(text || '') + (knopfHtml || '');
   el.style.display = text ? '' : 'none';
 }
 
@@ -2765,17 +2868,30 @@ function invOrtButtons() {
 
 // ── Statuswechsel ──
 async function invStarten() {
-  if (!confirm('Neue Inventur mit Stichtag heute starten?')) return;
+  const stichtag = document.getElementById('inv-neu-stichtag')?.value || '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(stichtag)) { toast('Bitte einen Stichtag wählen.', 'error'); return; }
+  if (!confirm(`Neue Inventur mit Stichtag ${invDatum(stichtag)} starten?`)) return;
   try {
-    const r = await invRpc('lager_inventur_starten');
+    const r = await invRpc('lager_inventur_starten', { p_stichtag: stichtag });
     toast('Inventur gestartet ✓');
     await invLaden(r?.id);
   } catch (e) { toast(invFehlerText(e), 'error'); }
 }
 
+async function invStichtagSetzen(stichtag) {
+  if (!invAktuell) return;
+  const id = invAktuell.id;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(stichtag)) { toast('Bitte einen gültigen Stichtag wählen.', 'error'); invRender(); return; }
+  try {
+    await invRpc('lager_inventur_stichtag_setzen', { p_id: id, p_stichtag: stichtag });
+    toast(`Stichtag auf ${invDatum(stichtag)} geändert ✓`);
+  } catch (e) { toast(invFehlerText(e), 'error'); }
+  await invLaden(id);
+}
+
 // Vor dem Abschluss die mitgeschriebenen Produktdaten auf den aktuellen Stand bringen
 async function invProduktdatenAuffrischen() {
-  invZaehlungen = (await invApi(`lager_inventur_zaehlungen?inventur_id=eq.${encodeURIComponent(invAktuell.id)}&select=*`)) || [];
+  invZaehlungen = await invZaehlungenLaden();
   for (const e of invProdukteZusammen()) {
     const p = db.products.find(x => x.id === e.produkt_id);
     if (!invStammdatenVollstaendig(p)) continue;
@@ -2817,9 +2933,14 @@ async function invWiederOeffnen() {
 function invBarcodeErkannt(code) {
   invMeldung('');
   const p = invProduktMitBarcode(code, null);
-  if (!p) { invMeldung(`Barcode ${code} ist keinem Produkt zugeordnet. Bitte zuerst im Lager-Tab beim Produkt eintragen.`); return; }
+  if (!p) {
+    invMeldung(`Barcode ${code} ist keinem Produkt zugeordnet.`,
+      `<button class="btn btn-outline btn-sm" style="display:block;margin-top:8px" onclick="invEditorOeffnen(null, '${esc(code)}')">+ Als neues Produkt anlegen</button>`);
+    return;
+  }
   if (!invStammdatenVollstaendig(p)) {
-    invMeldung(`„${p.name}“: Inventurdaten unvollständig (fehlt: ${invFehlendeStammdaten(p).join(', ')}). Bitte im Lager-Tab ergänzen.`);
+    toast(`Bitte ergänzen: ${invFehlendeStammdaten(p).join(', ')}`, 'error');
+    invEditorOeffnen(p.id);
     return;
   }
   invEintragOeffnen(p.id);
@@ -2909,6 +3030,133 @@ async function invEintragEntfernen() {
     invEintragSchliessen();
     document.getElementById('inv-inhalt').innerHTML = invMengenHTML();
   } catch (e) { toast(invFehlerText(e), 'error'); }
+}
+
+// ── Produkt ohne Scan hinzufügen ──
+function invSucheOeffnen() {
+  if (!invDarfBearbeiten()) return;
+  document.getElementById('invSucheText').value = '';
+  invSucheRender();
+  openModal('modalInvSuche');
+  setTimeout(() => document.getElementById('invSucheText').focus(), 100);
+}
+
+function invSucheRender() {
+  const q = document.getElementById('invSucheText').value.toLowerCase().trim();
+  const liste = document.getElementById('invSucheListe');
+  if (q.length < 2) { liste.innerHTML = '<div class="inv-klein">Mindestens 2 Zeichen eingeben.</div>'; return; }
+  const qKey = invBarcodeKey(q);
+  const treffer = db.products.filter(p => p.name.toLowerCase().includes(q) || (qKey && invBarcodeKey(p.barcode).includes(qKey))).slice(0, 30);
+  liste.innerHTML = treffer.length
+    ? treffer.map(p => `<div class="inv-treffer" onclick="invEditorOeffnen('${esc(p.id)}')">
+        <div style="font-weight:600">${esc(p.name)}</div>
+        <div class="inv-klein">${invStammdatenVollstaendig(p) ? `${esc(p.firma)} · Barcode ${esc(p.barcode)}` : 'Inventurdaten fehlen noch – beim Hinzufügen ergänzen'}</div>
+      </div>`).join('')
+    : '<div class="inv-klein">Kein Produkt gefunden. Mit „+ Neues Produkt anlegen“ neu erfassen.</div>';
+}
+
+// ── Alle Daten eines Produkts in der Inventur bearbeiten (auch neu anlegen) ──
+let invEdId = null;   // Produkt-ID, null = neues Produkt
+
+function invEditorOeffnen(produktId, neuerBarcode) {
+  if (!invDarfBearbeiten()) return;
+  closeModal('modalInvSuche');
+  invEintragSchliessen();
+  invEdId = produktId || null;
+  const p = invEdId ? db.products.find(x => x.id === invEdId) : null;
+  const zeilen = invEdId ? invZaehlungen.filter(z => z.produkt_id === invEdId) : [];
+  const z0 = zeilen[0];
+  const d = p ? p : z0 ? { name: z0.produktname, barcode: z0.barcode, firma: z0.produktfirma,
+    preis_gebinde: Number(z0.bruttopreis_gebinde), stueck_gebinde: z0.stueck_gebinde } : { barcode: neuerBarcode || '' };
+  const menge = ort => { const z = zeilen.find(x => x.ort === ort); return z ? z.menge : ''; };
+  document.getElementById('invEdTitel').textContent = invEdId ? 'Produkt in der Inventur' : 'Neues Produkt anlegen';
+  document.getElementById('invEdName').value = d.name || '';
+  document.getElementById('invEdBarcode').value = d.barcode || '';
+  document.getElementById('invEdFirma').innerHTML = invFirmaOptionen(d.firma);
+  document.getElementById('invEdPreis').value = Number.isFinite(d.preis_gebinde) ? d.preis_gebinde : '';
+  document.getElementById('invEdStueck').value = Number.isInteger(d.stueck_gebinde) ? d.stueck_gebinde : '';
+  document.getElementById('invEdGeschaeft').value = menge('geschaeft');
+  document.getElementById('invEdLager').value = menge('lager');
+  document.getElementById('invEdLoeschen').style.display = zeilen.length ? '' : 'none';
+  openModal('modalInvEditor');
+  setTimeout(() => document.getElementById(invEdId ? 'invEdGeschaeft' : 'invEdName').focus(), 100);
+}
+
+async function invEditorSpeichern() {
+  if (!invDarfBearbeiten() || invSpeichert) return;
+  const name = document.getElementById('invEdName').value.trim();
+  const barcode = invBarcodeText(document.getElementById('invEdBarcode').value);
+  const firma = document.getElementById('invEdFirma').value;
+  const preis = invZahl(document.getElementById('invEdPreis').value.trim());
+  const stueck = Number(document.getElementById('invEdStueck').value.trim());
+  if (!name) { toast('Bitte Produktname eingeben.', 'error'); return; }
+  if (!barcode) { toast('Bitte Barcode eingeben.', 'error'); return; }
+  const anderes = invProduktMitBarcode(barcode, invEdId);
+  if (anderes) { toast(`Barcode ist schon bei „${anderes.name}“ eingetragen.`, 'error'); return; }
+  if (!INV_FIRMEN.includes(firma)) { toast('Bitte eine der vier Produktfirmen wählen.', 'error'); return; }
+  if (!Number.isFinite(preis)) { toast('Bitte Bruttopreis pro Gebinde eingeben.', 'error'); return; }
+  if (!Number.isInteger(stueck) || stueck < 1) { toast('Stück pro Gebinde muss eine ganze Zahl ab 1 sein.', 'error'); return; }
+  const mengen = {};
+  for (const [ort, feld] of [['geschaeft', 'invEdGeschaeft'], ['lager', 'invEdLager']]) {
+    const raw = document.getElementById(feld).value.trim();
+    if (raw === '') { mengen[ort] = null; continue; }
+    const m = Number(raw);
+    if (!Number.isInteger(m) || m < 0) { toast(`Stück im ${INV_ORTE[ort]}: bitte ganze Zahl (0 oder mehr).`, 'error'); return; }
+    mengen[ort] = m;
+  }
+  const daten = { name, barcode, firma, preis_gebinde: invCent(preis) / 100, stueck_gebinde: stueck };
+
+  // 1) Produkt im Lager ändern bzw. neu anlegen (ohne Bestand zu verändern)
+  let p = invEdId ? db.products.find(x => x.id === invEdId) : null;
+  if (!invEdId) {
+    const maxSort = db.products.reduce((m, x) => Math.max(m, x.sortOrder || 0), 0);
+    p = { id: genId(), name, unit: 'Stk.', note: '', zones: ['geschaeft', 'keller'], stock: { geschaeft: 0, keller: 0 },
+      reorder_point: 0, soll_bestand: {}, subcatId: null, sortOrder: maxSort + 10, created_at: new Date().toISOString() };
+    db.products.push(p);
+  }
+  if (p) { Object.assign(p, daten); saveData(db); render(); }
+  const produktId = p ? p.id : invEdId;
+
+  // 2) Zählungen je Ort schreiben bzw. entfernen
+  const inventurId = invAktuell.id;
+  const basis = `lager_inventur_zaehlungen?inventur_id=eq.${encodeURIComponent(inventurId)}&produkt_id=eq.${encodeURIComponent(produktId)}`;
+  invSpeichert = true;
+  try {
+    for (const ort of Object.keys(INV_ORTE)) {
+      if (mengen[ort] === null) {
+        if (invZaehlungen.some(z => z.produkt_id === produktId && z.ort === ort))
+          await invApi(`${basis}&ort=eq.${ort}`, { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
+        continue;
+      }
+      await invApi('lager_inventur_zaehlungen?on_conflict=inventur_id,produkt_id,ort', {
+        method: 'POST', headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({ inventur_id: inventurId, produkt_id: produktId, ort, menge: mengen[ort], barcode, produktname: name,
+          produktfirma: firma, bruttopreis_gebinde: daten.preis_gebinde, stueck_gebinde: stueck })
+      });
+    }
+    toast(`${name} gespeichert ✓`);
+    closeModal('modalInvEditor');
+  } catch (e) {
+    toast(invFehlerText(e), 'error');
+  } finally {
+    invSpeichert = false;
+  }
+  invZaehlungen = await invZaehlungenLaden().catch(() => invZaehlungen);
+  invRender();
+}
+
+async function invEditorLoeschen() {
+  if (!invEdId || !invDarfBearbeiten()) return;
+  const name = document.getElementById('invEdName').value.trim() || 'Produkt';
+  if (!confirm(`„${name}“ aus dieser Inventur löschen (Geschäft und Lager)? Das Produkt im Lager-Tab bleibt erhalten.`)) return;
+  try {
+    await invApi(`lager_inventur_zaehlungen?inventur_id=eq.${encodeURIComponent(invAktuell.id)}&produkt_id=eq.${encodeURIComponent(invEdId)}`,
+      { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
+    toast('Aus der Inventur gelöscht');
+    closeModal('modalInvEditor');
+  } catch (e) { toast(invFehlerText(e), 'error'); }
+  invZaehlungen = await invZaehlungenLaden().catch(() => invZaehlungen);
+  invRender();
 }
 
 // ── Kamera-Scan (html5-qrcode, wird erst beim ersten Scan geladen) ──
