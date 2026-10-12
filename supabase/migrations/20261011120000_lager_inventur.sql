@@ -25,7 +25,7 @@
 --    * Zählungen einer abgeschlossenen Inventur (= Grundlage für
 --      Auswertung und CSV) liest nur die Chefin.
 --    * Pro Inventur, Produkt und Ort genau eine Zeile (Primärschlüssel).
---    * Die Produktdaten (Barcode, Name, Firma, Preis, Stück/Gebinde)
+--    * Die Produktdaten (Barcode, Name, Firma, Preis, Stück/Gebinde, Produktgruppe)
 --      werden in jede Zählung mitgeschrieben, damit eine abgeschlossene
 --      Inventur unverändert bleibt, auch wenn sich Stammdaten ändern.
 -- ════════════════════════════════════════════════════════════
@@ -74,6 +74,10 @@ CREATE TABLE IF NOT EXISTS lager_inventur_zaehlungen (
   PRIMARY KEY (inventur_id, produkt_id, ort)
 );
 ALTER TABLE lager_inventur_zaehlungen ENABLE ROW LEVEL SECURITY;
+
+-- Produktgruppe Inventur (optional): Grundlage für Sammelzeilen in Auswertung/CSV
+ALTER TABLE lager_inventur_zaehlungen
+  ADD COLUMN IF NOT EXISTS produktgruppe text CHECK (char_length(produktgruppe) <= 80);
 
 -- Wer/wann wird vom Server gesetzt, nicht vom Browser
 CREATE OR REPLACE FUNCTION lager_inventur_zaehlung_stempel() RETURNS trigger
@@ -218,5 +222,8 @@ END $$;
 
 REVOKE ALL ON FUNCTION lager_inventur_loeschen(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION lager_inventur_loeschen(uuid) TO authenticated;
+
+-- PostgREST soll neue Spalten sofort kennen
+NOTIFY pgrst, 'reload schema';
 
 COMMIT;
