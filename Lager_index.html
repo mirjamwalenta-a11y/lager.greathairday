@@ -2667,6 +2667,9 @@ function excelInventurdatenErgaenzen(iName, sp) {
     const b = sp.barcode !== '' ? invBarcodeText(row[sp.barcode]) : '';
     const name = iName !== '' ? String(row[iName] ?? '').trim() : '';
     if (!b && !name) return;
+    // Zeilen ohne Inventurdaten (z. B. noch nicht ausgefüllte Vorlage) still überspringen
+    const hatDaten = [sp.barcode, sp.firma, sp.preis, sp.stueck, sp.gruppe].some(i => i !== '' && String(row[i] ?? '').trim() !== '');
+    if (!hatDaten) return;
     let p = b ? invProduktMitBarcode(b, null) : null;
     if (!p && name) {
       const treffer = nachName[nameKey(name)] || [];
