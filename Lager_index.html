@@ -538,7 +538,7 @@
         <textarea id="fNote" rows="2" placeholder="Lieferant, Artikelnr., …"></textarea>
       </div>
       <div style="border-top:1px solid var(--border);padding-top:12px;font-size:12px;font-weight:700;color:var(--mid);text-transform:uppercase;letter-spacing:.06em;">
-        Inventurdaten <span style="font-weight:400;text-transform:none;letter-spacing:0;">– alle vier nötig, damit das Produkt gezählt werden kann</span>
+        Inventurdaten <span style="font-weight:400;text-transform:none;letter-spacing:0;">– zum Zählen genügt die Firma; Preis und Stück pro Gebinde braucht die Bewertung</span>
       </div>
       <div class="field-row">
         <div class="field">
@@ -753,7 +753,7 @@
       </div>
       <div class="field-row">
         <div class="field">
-          <label>Barcode *</label>
+          <label>Barcode (optional)</label>
           <input type="text" id="invEdBarcode" inputmode="numeric" autocomplete="off">
         </div>
         <div class="field">
@@ -763,11 +763,11 @@
       </div>
       <div class="field-row">
         <div class="field">
-          <label>Bruttopreis pro Gebinde (€) *</label>
+          <label>Bruttopreis pro Gebinde (€)</label>
           <input type="number" id="invEdPreis" min="0" step="0.01" inputmode="decimal">
         </div>
         <div class="field">
-          <label>Stück pro Gebinde *</label>
+          <label>Stück pro Gebinde</label>
           <input type="number" id="invEdStueck" min="1" step="1" inputmode="numeric">
         </div>
       </div>
@@ -775,7 +775,7 @@
         <label>Produktgruppe Inventur (optional)</label>
         <input type="text" id="invEdGruppe" list="inv-gruppen-liste" maxlength="80" autocomplete="off" placeholder="z. B. Majirel Farben">
       </div>
-      <div class="field-row">
+      <div class="field-row" id="invEdMengen">
         <div class="field">
           <label>Stück im Geschäft</label>
           <input type="number" id="invEdGeschaeft" min="0" step="1" inputmode="numeric" placeholder="nicht erfasst">
@@ -785,7 +785,8 @@
           <input type="number" id="invEdLager" min="0" step="1" inputmode="numeric" placeholder="nicht erfasst">
         </div>
       </div>
-      <div class="inv-klein">Leeres Mengenfeld = an diesem Ort nicht erfasst. Name, Barcode, Firma und Preise werden auch im Lager-Tab geändert.</div>
+      <div class="inv-klein" id="invEdHinweis"></div>
+      <button id="invEdProduktLoeschen" class="btn btn-outline btn-sm" style="align-self:flex-start;color:#C0392B;border-color:#C0392B" onclick="invProduktLoeschen()">🗑 Produkt löschen</button>
     </div>
     <div class="modal-footer">
       <button id="invEdLoeschen" class="btn btn-outline" style="margin-right:auto;color:#C0392B;border-color:#C0392B" onclick="invEditorLoeschen()">Aus Inventur löschen</button>
@@ -938,6 +939,9 @@
 
     <!-- Erfasste Mengen bzw. Auswertung -->
     <div id="inv-inhalt"></div>
+
+    <!-- Produkte verwalten -->
+    <div id="inv-produkte"></div>
 
   </div>
 </div>
@@ -2513,7 +2517,7 @@ function lagerNotizMikro() {
 // Rechte (zählen: alle Angemeldeten; abschließen, wieder öffnen, Auswertung/CSV: nur Chefin)
 // setzt die Datenbank durch, siehe supabase/migrations/20261011120000_lager_inventur.sql.
 // Die Knöpfe hier werden nur ein-/ausgeblendet.
-const INV_FIRMEN = ['Loreal', 'Nashi Argan', 'Goldwell', 'Wella'];
+const INV_FIRMEN = ['Loreal', 'Nashi Argan', 'Goldwell', 'Wella', 'American Crew'];
 const INV_ABZUEGE = [0.30, 0.20, 0.03];   // nacheinander, fix für alle Firmen (V1)
 const INV_ORTE = { geschaeft: 'Geschäft', lager: 'Lager' };
 const INV_SCANNER_URL = 'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js';
@@ -2559,15 +2563,20 @@ function invGruppenVorschlaege(firma) {
     [...namen.values()].sort((a, b) => a.localeCompare(b, 'de')).map(g => `<option value="${esc(g)}">`).join('');
 }
 
+// Zum Zählen genügen Name und Firma (Barcode optional). Für die Bewertung beim
+// Abschluss braucht jeder gezählte Posten Bruttopreis und Stück pro Gebinde.
 function invFehlendeStammdaten(p) {
   const f = [];
-  if (!invBarcodeKey(p.barcode)) f.push('Barcode');
+  if (!String(p.name || '').trim()) f.push('Produktname');
   if (!INV_FIRMEN.includes(p.firma)) f.push('Produktfirma');
-  if (!(Number.isFinite(p.preis_gebinde) && p.preis_gebinde >= 0)) f.push('Bruttopreis pro Gebinde');
-  if (!(Number.isInteger(p.stueck_gebinde) && p.stueck_gebinde >= 1)) f.push('Stück pro Gebinde');
   return f;
 }
 function invStammdatenVollstaendig(p) { return !!p && invFehlendeStammdaten(p).length === 0; }
+function invNum(v) { return v === null || v === undefined || v === '' ? null : Number(v); }
+function invBewertbar(preis, stueck) {
+  const pr = invNum(preis), st = invNum(stueck);
+  return pr !== null && Number.isFinite(pr) && pr >= 0 && Number.isInteger(st) && st >= 1;
+}
 function invProduktMitBarcode(code, ausserId) {
   const k = invBarcodeKey(code);
   if (!k) return null;
@@ -2598,7 +2607,7 @@ function invStammdatenAusFormular(editId) {
     const anderes = invProduktMitBarcode(barcode, editId);
     if (anderes) { toast(`Barcode ist schon bei „${anderes.name}“ eingetragen.`, 'error'); return null; }
   }
-  if (firma && !INV_FIRMEN.includes(firma)) { toast('Bitte eine der vier Produktfirmen wählen.', 'error'); return null; }
+  if (firma && !INV_FIRMEN.includes(firma)) { toast('Bitte eine der Produktfirmen wählen.', 'error'); return null; }
   let preis = null, stueck = null;
   if (preisRaw !== '') {
     preis = invZahl(preisRaw);
@@ -2635,7 +2644,7 @@ function excelInventurwerte(row, sp, ausserId, hinweise, zeile) {
   if (zelle(sp.firma)) {
     const f = invFirmaNormalisieren(row[sp.firma]);
     if (f) inv.firma = f;
-    else hinweise.push(`Zeile ${zeile}: „${zelle(sp.firma)}“ ist keine der vier Produktfirmen – nicht übernommen`);
+    else hinweise.push(`Zeile ${zeile}: „${zelle(sp.firma)}“ ist keine der Produktfirmen – nicht übernommen`);
   }
   if (zelle(sp.preis)) {
     const pr = invZahl(row[sp.preis]);
@@ -2783,19 +2792,20 @@ function invAuswertung() {
   invProdukteZusammen().forEach(e => {
     if (e.gesamt <= 0) { ohneMenge++; return; }
     const z = e.z;
-    const preisGebinde = Number(z.bruttopreis_gebinde);
-    const preisStk = preisGebinde / z.stueck_gebinde;
+    const bewertbar = invBewertbar(z.bruttopreis_gebinde, z.stueck_gebinde);
+    const preisGebinde = bewertbar ? Number(z.bruttopreis_gebinde) : null;
+    const preisStk = bewertbar ? preisGebinde / Number(z.stueck_gebinde) : null;
     const gruppe = invGruppeText(z.produktgruppe);
     const f = firmen.find(x => x.firma === z.produktfirma);
     const gKey = invGruppeKey(gruppe);
     if (!f.gruppen.has(gKey)) f.gruppen.set(gKey, { name: gruppe, zeilen: new Map() });
     const g = f.gruppen.get(gKey);
     // gleicher Bewertungswert = gleicher Bruttopreis pro Stück (auf 1/1 000 000 € genau)
-    const zKey = gruppe ? String(Math.round(preisStk * 1e6)) : 'einzeln:' + e.produkt_id;
+    const zKey = gruppe && bewertbar ? String(Math.round(preisStk * 1e6)) : 'einzeln:' + e.produkt_id;
     if (!g.zeilen.has(zKey)) g.zeilen.set(zKey, { preisStk, produkte: [] });
     g.zeilen.get(zKey).produkte.push({
       produkt_id: e.produkt_id, name: z.produktname, barcode: z.barcode,
-      preisGebindeCent: invCent(preisGebinde), stueck: z.stueck_gebinde,
+      preisGebindeCent: bewertbar ? invCent(preisGebinde) : null, stueck: bewertbar ? Number(z.stueck_gebinde) : null,
       geschaeft: e.geschaeft || 0, lager: e.lager || 0, gesamt: e.gesamt
     });
   });
@@ -2807,15 +2817,16 @@ function invAuswertung() {
         name: g.name,
         zeilen: [...g.zeilen.values()].map(r => {
           const pr = r.produkte.sort((a, b) => a.name.localeCompare(b.name, 'de'));
-          const endStk = INV_ABZUEGE.reduce((w, a) => w * (1 - a), r.preisStk);
+          const ohnePreis = r.preisStk === null;
+          const endStk = ohnePreis ? 0 : INV_ABZUEGE.reduce((w, a) => w * (1 - a), r.preisStk);
           const gesamt = pr.reduce((s, x) => s + x.gesamt, 0);
           const sammel = pr.length > 1;
           return {
-            sammel, produkte: pr,
+            sammel, produkte: pr, ohnePreis,
             bezeichnung: sammel ? g.name : pr[0].name,
             barcode: sammel ? '' : pr[0].barcode,
             preisGebindeCent: einheitlich(pr, 'preisGebindeCent'), stueck: einheitlich(pr, 'stueck'),
-            preisStkCent: invCent(r.preisStk), endStkCent: invCent(endStk),
+            preisStkCent: ohnePreis ? null : invCent(r.preisStk), endStkCent: ohnePreis ? null : invCent(endStk),
             geschaeft: pr.reduce((s, x) => s + x.geschaeft, 0), lager: pr.reduce((s, x) => s + x.lager, 0), gesamt,
             wertCent: invCent(endStk * gesamt)          // genau gerechnet, erst hier auf Cent gerundet
           };
@@ -2842,6 +2853,7 @@ function invRender() {
       <button class="btn btn-outline btn-sm" style="margin-top:10px" onclick="invLaden()">Erneut versuchen</button>`;
     erfassung.style.display = 'none';
     inhalt.innerHTML = '';
+    invProdukteRender();
     return;
   }
   sel.style.display = invListe.length ? '' : 'none';
@@ -2882,6 +2894,7 @@ function invRender() {
   if (!offen) { invScanStoppen(); invEintragSchliessen(); }
   invOrtButtons();
   inhalt.innerHTML = !invAktuell ? '' : offen ? invMengenHTML() : invAuswertungHTML();
+  invProdukteRender();
 }
 
 // „Produkt hinzufügen“: offen für alle, abgeschlossen nur für die Chefin
@@ -2914,7 +2927,7 @@ function invAuswertungHTML() {
   const a = invAuswertung();
   let nr = 0;
   const zeileHTML = r => {
-    const info = `Geschäft ${r.geschaeft} · Lager ${r.lager} · ${invEuro(r.endStkCent)}/Stk.`;
+    const info = `Geschäft ${r.geschaeft} · Lager ${r.lager} · ` + (r.ohnePreis ? '<strong style="color:#C0392B">Preis fehlt</strong>' : `${invEuro(r.endStkCent)}/Stk.`);
     if (!r.sammel) {
       const p = r.produkte[0];
       return `<tr class="inv-zeile" onclick="invEditorOeffnen('${esc(p.produkt_id)}')">
@@ -2982,15 +2995,21 @@ async function invStichtagSetzen(stichtag) {
 }
 
 // Vor dem Abschluss die mitgeschriebenen Produktdaten auf den aktuellen Stand bringen
+// Produktdaten, die in jede Zählung mitgeschrieben werden
+function invZaehlungsDaten(p) {
+  return { barcode: invBarcodeText(p.barcode) || null, produktname: p.name, produktfirma: p.firma,
+    bruttopreis_gebinde: invNum(p.preis_gebinde), stueck_gebinde: invNum(p.stueck_gebinde),
+    produktgruppe: invGruppeText(p.produktgruppe) || null };
+}
+
 async function invProduktdatenAuffrischen() {
   invZaehlungen = await invZaehlungenLaden();
   for (const e of invProdukteZusammen()) {
     const p = db.products.find(x => x.id === e.produkt_id);
     if (!invStammdatenVollstaendig(p)) continue;
-    const neu = { barcode: p.barcode, produktname: p.name, produktfirma: p.firma, bruttopreis_gebinde: p.preis_gebinde, stueck_gebinde: p.stueck_gebinde,
-      produktgruppe: invGruppeText(p.produktgruppe) || null };
-    const veraltet = invZaehlungen.some(z => z.produkt_id === p.id && (z.barcode !== neu.barcode || z.produktname !== neu.produktname
-      || z.produktfirma !== neu.produktfirma || Number(z.bruttopreis_gebinde) !== neu.bruttopreis_gebinde || z.stueck_gebinde !== neu.stueck_gebinde
+    const neu = invZaehlungsDaten(p);
+    const veraltet = invZaehlungen.some(z => z.produkt_id === p.id && ((z.barcode || null) !== neu.barcode || z.produktname !== neu.produktname
+      || z.produktfirma !== neu.produktfirma || invNum(z.bruttopreis_gebinde) !== neu.bruttopreis_gebinde || invNum(z.stueck_gebinde) !== neu.stueck_gebinde
       || (z.produktgruppe || null) !== neu.produktgruppe));
     if (!veraltet) continue;
     await invApi(`lager_inventur_zaehlungen?inventur_id=eq.${encodeURIComponent(invAktuell.id)}&produkt_id=eq.${encodeURIComponent(p.id)}`,
@@ -3006,6 +3025,16 @@ async function invAbschliessen() {
   try {
     invScanStoppen();
     await invProduktdatenAuffrischen();
+    const ohnePreis = invProdukteZusammen().filter(e => e.gesamt > 0 && !invBewertbar(e.z.bruttopreis_gebinde, e.z.stueck_gebinde));
+    if (ohnePreis.length) {
+      alert(`Noch nicht abgeschlossen: ${invAnzahl(ohnePreis.length)} ohne Bruttopreis bzw. Stück pro Gebinde:\n\n`
+        + ohnePreis.slice(0, 15).map(e => '• ' + e.z.produktname).join('\n')
+        + (ohnePreis.length > 15 ? `\n… und ${ohnePreis.length - 15} weitere` : '')
+        + '\n\nBitte unter „Produkte verwalten“ ergänzen.');
+      invProdukteOffen = true;
+      await invLaden(id);
+      return;
+    }
     await invRpc('lager_inventur_abschliessen', { p_id: id });
     toast('Inventur abgeschlossen ✓');
   } catch (e) { toast(invFehlerText(e), 'error'); }
@@ -3073,7 +3102,7 @@ function invEintragOeffnen(produktId) {
     const z = invZaehlungen.find(x => x.produkt_id === produktId);
     if (!z) return;
     p = { id: produktId, name: z.produktname, barcode: z.barcode, firma: z.produktfirma,
-      preis_gebinde: Number(z.bruttopreis_gebinde), stueck_gebinde: z.stueck_gebinde, produktgruppe: z.produktgruppe };
+      preis_gebinde: invNum(z.bruttopreis_gebinde), stueck_gebinde: invNum(z.stueck_gebinde), produktgruppe: z.produktgruppe };
   }
   invEintragProdukt = p;
   invMeldung('');
@@ -3082,7 +3111,7 @@ function invEintragOeffnen(produktId) {
   const dort = invZaehlungen.find(z => z.produkt_id === p.id && z.ort === anderer);
   document.getElementById('inv-eintrag-info').innerHTML =
     `<div style="font-size:16px;font-weight:700">${esc(p.name)}</div>
-     <div class="inv-klein">${esc(p.firma)} · Barcode ${esc(p.barcode)} · ${p.stueck_gebinde} Stk. pro Gebinde</div>`
+     <div class="inv-klein">${esc(p.firma)}${p.barcode ? ` · Barcode ${esc(p.barcode)}` : ''}${invBewertbar(p.preis_gebinde, p.stueck_gebinde) ? ` · ${p.stueck_gebinde} Stk. pro Gebinde` : ' · Preis fehlt noch'}</div>`
     + (hier ? `<div class="inv-meldung" style="background:var(--gold-lt);color:var(--deep)">Im ${INV_ORTE[invOrt]} schon erfasst: <strong>${hier.menge} Stk.</strong> – die neue Zahl ersetzt die alte.</div>` : '')
     + (dort ? `<div class="inv-klein" style="margin-top:6px">${INV_ORTE[anderer]}: ${dort.menge} Stk. erfasst</div>` : '');
   document.getElementById('inv-eintrag-label').textContent = `Einzelstücke im ${INV_ORTE[invOrt]}`;
@@ -3108,9 +3137,7 @@ async function invEintragSpeichern() {
   const menge = Number(raw);
   if (raw === '' || !Number.isInteger(menge) || menge < 0) { toast('Bitte eine ganze Stückzahl eingeben (0 oder mehr).', 'error'); return; }
   const ort = invOrt;
-  const zeile = { inventur_id: invAktuell.id, produkt_id: p.id, ort, menge, barcode: p.barcode, produktname: p.name,
-    produktfirma: p.firma, bruttopreis_gebinde: p.preis_gebinde, stueck_gebinde: p.stueck_gebinde,
-    produktgruppe: invGruppeText(p.produktgruppe) || null };
+  const zeile = { inventur_id: invAktuell.id, produkt_id: p.id, ort, menge, ...invZaehlungsDaten(p) };
   invSpeichert = true;
   try {
     const res = await invApi('lager_inventur_zaehlungen?on_conflict=inventur_id,produkt_id,ort', {
@@ -3162,7 +3189,7 @@ function invSucheRender() {
   liste.innerHTML = treffer.length
     ? treffer.map(p => `<div class="inv-treffer" onclick="invEditorOeffnen('${esc(p.id)}')">
         <div style="font-weight:600">${esc(p.name)}</div>
-        <div class="inv-klein">${invStammdatenVollstaendig(p) ? `${esc(p.firma)} · Barcode ${esc(p.barcode)}` : 'Inventurdaten fehlen noch – beim Hinzufügen ergänzen'}</div>
+        <div class="inv-klein">${invStammdatenVollstaendig(p) ? esc(p.firma) + (p.barcode ? ` · Barcode ${esc(p.barcode)}` : '') : 'Firma fehlt noch – beim Hinzufügen ergänzen'}</div>
       </div>`).join('')
     : '<div class="inv-klein">Kein Produkt gefunden. Mit „+ Neues Produkt anlegen“ neu erfassen.</div>';
 }
@@ -3171,7 +3198,6 @@ function invSucheRender() {
 let invEdId = null;   // Produkt-ID, null = neues Produkt
 
 function invEditorOeffnen(produktId, neuerBarcode) {
-  if (!invDarfBearbeiten()) return;
   closeModal('modalInvSuche');
   invEintragSchliessen();
   invEdId = produktId || null;
@@ -3179,9 +3205,14 @@ function invEditorOeffnen(produktId, neuerBarcode) {
   const zeilen = invEdId ? invZaehlungen.filter(z => z.produkt_id === invEdId) : [];
   const z0 = zeilen[0];
   const d = p ? p : z0 ? { name: z0.produktname, barcode: z0.barcode, firma: z0.produktfirma,
-    preis_gebinde: Number(z0.bruttopreis_gebinde), stueck_gebinde: z0.stueck_gebinde, produktgruppe: z0.produktgruppe } : { barcode: neuerBarcode || '' };
+    preis_gebinde: invNum(z0.bruttopreis_gebinde), stueck_gebinde: invNum(z0.stueck_gebinde), produktgruppe: z0.produktgruppe } : { barcode: neuerBarcode || '' };
   const menge = ort => { const z = zeilen.find(x => x.ort === ort); return z ? z.menge : ''; };
-  document.getElementById('invEdTitel').textContent = invEdId ? 'Produkt in der Inventur' : 'Neues Produkt anlegen';
+  const mitMengen = invDarfBearbeiten();
+  document.getElementById('invEdTitel').textContent = !invEdId ? 'Neues Produkt anlegen' : mitMengen ? 'Produkt in der Inventur' : 'Produkt bearbeiten';
+  document.getElementById('invEdMengen').style.display = mitMengen ? '' : 'none';
+  document.getElementById('invEdHinweis').textContent = (mitMengen ? 'Leeres Mengenfeld = an diesem Ort nicht erfasst. ' : '')
+    + 'Zum Zählen genügen Name und Firma; Preis und Stück pro Gebinde braucht die Bewertung beim Abschluss. Änderungen gelten auch im Lager-Tab.';
+  document.getElementById('invEdProduktLoeschen').style.display = p ? '' : 'none';
   document.getElementById('invEdName').value = d.name || '';
   document.getElementById('invEdBarcode').value = d.barcode || '';
   document.getElementById('invEdFirma').innerHTML = invFirmaOptionen(d.firma);
@@ -3191,35 +3222,46 @@ function invEditorOeffnen(produktId, neuerBarcode) {
   invGruppenVorschlaege(d.firma);
   document.getElementById('invEdGeschaeft').value = menge('geschaeft');
   document.getElementById('invEdLager').value = menge('lager');
-  document.getElementById('invEdLoeschen').style.display = zeilen.length ? '' : 'none';
+  document.getElementById('invEdLoeschen').style.display = mitMengen && zeilen.length ? '' : 'none';
   openModal('modalInvEditor');
-  setTimeout(() => document.getElementById(invEdId ? 'invEdGeschaeft' : 'invEdName').focus(), 100);
+  setTimeout(() => document.getElementById(invEdId && mitMengen ? 'invEdGeschaeft' : 'invEdName').focus(), 100);
 }
 
 async function invEditorSpeichern() {
-  if (!invDarfBearbeiten() || invSpeichert) return;
+  if (invSpeichert) return;
+  const mitMengen = invDarfBearbeiten();
   const name = document.getElementById('invEdName').value.trim();
   const barcode = invBarcodeText(document.getElementById('invEdBarcode').value);
   const firma = document.getElementById('invEdFirma').value;
-  const preis = invZahl(document.getElementById('invEdPreis').value.trim());
-  const stueck = Number(document.getElementById('invEdStueck').value.trim());
+  const preisRaw = document.getElementById('invEdPreis').value.trim();
+  const stueckRaw = document.getElementById('invEdStueck').value.trim();
   if (!name) { toast('Bitte Produktname eingeben.', 'error'); return; }
-  if (!barcode) { toast('Bitte Barcode eingeben.', 'error'); return; }
-  const anderes = invProduktMitBarcode(barcode, invEdId);
-  if (anderes) { toast(`Barcode ist schon bei „${anderes.name}“ eingetragen.`, 'error'); return; }
-  if (!INV_FIRMEN.includes(firma)) { toast('Bitte eine der vier Produktfirmen wählen.', 'error'); return; }
-  if (!Number.isFinite(preis)) { toast('Bitte Bruttopreis pro Gebinde eingeben.', 'error'); return; }
-  if (!Number.isInteger(stueck) || stueck < 1) { toast('Stück pro Gebinde muss eine ganze Zahl ab 1 sein.', 'error'); return; }
+  if (barcode) {
+    const anderes = invProduktMitBarcode(barcode, invEdId);
+    if (anderes) { toast(`Barcode ist schon bei „${anderes.name}“ eingetragen.`, 'error'); return; }
+  }
+  if (!INV_FIRMEN.includes(firma)) { toast('Bitte eine der Produktfirmen wählen.', 'error'); return; }
+  let preis = null, stueck = null;
+  if (preisRaw !== '') {
+    preis = invZahl(preisRaw);
+    if (!Number.isFinite(preis)) { toast('Bruttopreis pro Gebinde ist ungültig.', 'error'); return; }
+    preis = invCent(preis) / 100;
+  }
+  if (stueckRaw !== '') {
+    stueck = Number(stueckRaw);
+    if (!Number.isInteger(stueck) || stueck < 1) { toast('Stück pro Gebinde muss eine ganze Zahl ab 1 sein.', 'error'); return; }
+  }
+  if (preis !== null && stueck === null) { toast('Bitte auch Stück pro Gebinde eingeben (z. B. 1).', 'error'); return; }
   const mengen = {};
   for (const [ort, feld] of [['geschaeft', 'invEdGeschaeft'], ['lager', 'invEdLager']]) {
-    const raw = document.getElementById(feld).value.trim();
+    const raw = mitMengen ? document.getElementById(feld).value.trim() : '';
     if (raw === '') { mengen[ort] = null; continue; }
     const m = Number(raw);
     if (!Number.isInteger(m) || m < 0) { toast(`Stück im ${INV_ORTE[ort]}: bitte ganze Zahl (0 oder mehr).`, 'error'); return; }
     mengen[ort] = m;
   }
   const produktgruppe = invGruppeText(document.getElementById('invEdGruppe').value) || null;
-  const daten = { name, barcode, firma, preis_gebinde: invCent(preis) / 100, stueck_gebinde: stueck, produktgruppe };
+  const daten = { name, barcode: barcode || null, firma, preis_gebinde: preis, stueck_gebinde: stueck, produktgruppe };
 
   // 1) Produkt im Lager ändern bzw. neu anlegen (ohne Bestand zu verändern)
   let p = invEdId ? db.products.find(x => x.id === invEdId) : null;
@@ -3231,6 +3273,12 @@ async function invEditorSpeichern() {
   }
   if (p) { Object.assign(p, daten); saveData(db); render(); }
   const produktId = p ? p.id : invEdId;
+  if (!mitMengen) {
+    toast(`${name} gespeichert ✓`);
+    closeModal('modalInvEditor');
+    invRender();
+    return;
+  }
 
   // 2) Zählungen je Ort schreiben bzw. entfernen
   const inventurId = invAktuell.id;
@@ -3245,8 +3293,7 @@ async function invEditorSpeichern() {
       }
       await invApi('lager_inventur_zaehlungen?on_conflict=inventur_id,produkt_id,ort', {
         method: 'POST', headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify({ inventur_id: inventurId, produkt_id: produktId, ort, menge: mengen[ort], barcode, produktname: name,
-          produktfirma: firma, bruttopreis_gebinde: daten.preis_gebinde, stueck_gebinde: stueck, produktgruppe })
+        body: JSON.stringify({ inventur_id: inventurId, produkt_id: produktId, ort, menge: mengen[ort], ...invZaehlungsDaten(daten) })
       });
     }
     toast(`${name} gespeichert ✓`);
@@ -3258,6 +3305,83 @@ async function invEditorSpeichern() {
   }
   invZaehlungen = await invZaehlungenLaden().catch(() => invZaehlungen);
   invRender();
+}
+
+// Produkt endgültig löschen (aus der Produktliste der App). Bereits erfasste
+// Zählungen bleiben mit ihren mitgeschriebenen Daten erhalten.
+function invProduktLoeschen() {
+  const p = invEdId ? db.products.find(x => x.id === invEdId) : null;
+  if (!p) return;
+  const gezaehlt = invZaehlungen.some(z => z.produkt_id === p.id);
+  if (!confirm(`„${p.name}“ endgültig löschen? Das Produkt verschwindet auch aus dem Lager-Tab.`
+    + (gezaehlt ? '\n\nIn der aktuellen Inventur bereits erfasste Mengen bleiben erhalten (zum Entfernen „Aus Inventur löschen“).' : ''))) return;
+  db.products = db.products.filter(x => x.id !== p.id);
+  saveData(db);
+  render();
+  toast(`${p.name} gelöscht`);
+  closeModal('modalInvEditor');
+  invRender();
+}
+
+// ── Produkte verwalten (alle Produkte mit Produktfirma) ──
+let invProdukteOffen = false;
+function invProdukteUmschalten() { invProdukteOffen = !invProdukteOffen; invProdukteRender(); }
+function invProdukteRender() {
+  const box = document.getElementById('inv-produkte');
+  if (!box) return;
+  const produkte = db.products.filter(p => INV_FIRMEN.includes(p.firma));
+  const ohnePreis = produkte.filter(p => !invBewertbar(p.preis_gebinde, p.stueck_gebinde)).length;
+  box.innerHTML = `<div class="inv-card">
+    <div class="inv-card-head" style="cursor:pointer" onclick="invProdukteUmschalten()">
+      <div style="font-weight:700">${invProdukteOffen ? '▾' : '▸'} Produkte verwalten (${produkte.length})</div>
+      <div class="inv-klein">${ohnePreis ? `${ohnePreis} ohne Preis` : 'alle mit Preis'}</div>
+    </div>
+    ${invProdukteOffen ? `<div class="inv-card-body">
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <input id="inv-produkte-suche" class="inv-datum" style="flex:1;min-width:0" placeholder="Suchen …" oninput="invProdukteListeRender()">
+        <button class="btn btn-primary btn-sm" onclick="invEditorOeffnen(null)">+ Neu</button>
+      </div>
+      <label class="inv-klein" style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
+        <input type="checkbox" id="inv-produkte-ohnepreis" onchange="invProdukteListeRender()"> nur Produkte ohne Preis
+      </label>
+      <div id="inv-produkte-liste"></div>
+    </div>` : ''}
+  </div>`;
+  if (invProdukteOffen) invProdukteListeRender();
+}
+function invProdukteListeRender() {
+  const el = document.getElementById('inv-produkte-liste');
+  if (!el) return;
+  const q = (document.getElementById('inv-produkte-suche')?.value || '').toLowerCase().trim();
+  const nurOhnePreis = document.getElementById('inv-produkte-ohnepreis')?.checked;
+  const produkte = db.products.filter(p => INV_FIRMEN.includes(p.firma)
+    && (!q || p.name.toLowerCase().includes(q) || invGruppeText(p.produktgruppe).toLowerCase().includes(q) || invBarcodeKey(p.barcode).includes(invBarcodeKey(q)))
+    && (!nurOhnePreis || !invBewertbar(p.preis_gebinde, p.stueck_gebinde)));
+  if (!produkte.length) { el.innerHTML = '<div class="inv-klein">Keine Produkte gefunden.</div>'; return; }
+  const menge = id => {
+    const zs = invZaehlungen.filter(z => z.produkt_id === id);
+    return zs.length ? zs.reduce((s, z) => s + z.menge, 0) : null;
+  };
+  let h = '';
+  INV_FIRMEN.forEach(firma => {
+    const f = produkte.filter(p => p.firma === firma);
+    if (!f.length) return;
+    h += `<div class="inv-label" style="margin-top:10px">${esc(firma)} (${f.length})</div>`;
+    const gruppen = new Map();
+    f.forEach(p => { const g = invGruppeText(p.produktgruppe); if (!gruppen.has(invGruppeKey(g))) gruppen.set(invGruppeKey(g), { name: g, liste: [] }); gruppen.get(invGruppeKey(g)).liste.push(p); });
+    [...gruppen.values()].sort((a, b) => (!a.name) - (!b.name) || a.name.localeCompare(b.name, 'de')).forEach(g => {
+      if (g.name) h += `<div class="inv-klein" style="font-weight:700;margin:6px 0 2px">${esc(g.name)}</div>`;
+      g.liste.sort((a, b) => a.name.localeCompare(b.name, 'de')).forEach(p => {
+        const m = invAktuell ? menge(p.id) : null;
+        h += `<div class="inv-treffer" onclick="invEditorOeffnen('${esc(p.id)}')">
+          <div style="display:flex;justify-content:space-between;gap:8px"><span style="font-weight:600">${esc(p.name)}</span>${m !== null ? `<span class="inv-klein">${m} Stk.</span>` : ''}</div>
+          <div class="inv-klein">${invBewertbar(p.preis_gebinde, p.stueck_gebinde)
+            ? `${invEuro(invCent(p.preis_gebinde))} / Gebinde · ${p.stueck_gebinde} Stk.` : '<span style="color:#C0392B">Preis fehlt</span>'}${p.barcode ? ' · Barcode ' + esc(p.barcode) : ''}</div>
+        </div>`;
+      });
+    });
+  });
+  el.innerHTML = h;
 }
 
 async function invEditorLoeschen() {
@@ -3365,7 +3489,8 @@ function invCsvExport() {
   a.firmen.forEach(f => {
     f.gruppen.forEach(g => g.zeilen.forEach(r => z(f.firma, g.name, r.sammel ? `${g.name} (Sammelposition)` : r.bezeichnung, r.produkte.length,
       r.barcode, r.preisGebindeCent === null ? '' : invCsvEuro(r.preisGebindeCent), r.stueck === null ? '' : r.stueck,
-      invCsvEuro(r.preisStkCent), invCsvEuro(r.endStkCent), r.geschaeft, r.lager, r.gesamt, invCsvEuro(r.wertCent))));
+      r.ohnePreis ? 'Preis fehlt' : invCsvEuro(r.preisStkCent), r.ohnePreis ? '' : invCsvEuro(r.endStkCent),
+      r.geschaeft, r.lager, r.gesamt, invCsvEuro(r.wertCent))));
     summe('Summe ' + f.firma, f.summeCent);
   });
   z();
