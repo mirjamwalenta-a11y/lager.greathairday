@@ -2517,7 +2517,8 @@ function lagerNotizMikro() {
 // Rechte (zählen: alle Angemeldeten; abschließen, wieder öffnen, Auswertung/CSV: nur Chefin)
 // setzt die Datenbank durch, siehe supabase/migrations/20261011120000_lager_inventur.sql.
 // Die Knöpfe hier werden nur ein-/ausgeblendet.
-const INV_FIRMEN = ['Loreal', 'Nashi Argan', 'Goldwell', 'Wella', 'American Crew'];
+// Reihenfolge wie in der Inventurliste der Inhaberin (gilt für Listen, Auswertung und CSV)
+const INV_FIRMEN = ['Loreal', 'Wella', 'Nashi Argan', 'American Crew', 'Goldwell'];
 const INV_ABZUEGE = [0.30, 0.20, 0.03];   // nacheinander, fix für alle Firmen (V1)
 const INV_ORTE = { geschaeft: 'Geschäft', lager: 'Lager' };
 const INV_SCANNER_URL = 'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js';
@@ -2572,6 +2573,13 @@ function invFehlendeStammdaten(p) {
   return f;
 }
 function invStammdatenVollstaendig(p) { return !!p && invFehlendeStammdaten(p).length === 0; }
+// Reihenfolge der Posten = Reihenfolge in der Produktliste (Import der Inventurliste);
+// gelöschte Produkte (nur noch in Zählungen) kommen ans Ende.
+function invPositionen() {
+  const m = new Map();
+  db.products.forEach((p, i) => m.set(p.id, i));
+  return id => (m.has(id) ? m.get(id) : Number.MAX_SAFE_INTEGER);
+}
 function invNum(v) { return v === null || v === undefined || v === '' ? null : Number(v); }
 function invBewertbar(preis, stueck) {
   const pr = invNum(preis), st = invNum(stueck);
@@ -2787,6 +2795,7 @@ function invProdukteZusammen() {
 // zusammengefasst werden nur Produkte mit gleicher Firma, gleicher Produktgruppe und
 // gleichem Bewertungswert (Bruttopreis pro Stück). Ohne Produktgruppe: eigene Zeile.
 function invAuswertung() {
+  const pos = invPositionen();
   const firmen = INV_FIRMEN.map(firma => ({ firma, gruppen: new Map(), summeCent: 0 }));
   let ohneMenge = 0;
   invProdukteZusammen().forEach(e => {
@@ -2804,7 +2813,7 @@ function invAuswertung() {
     const zKey = gruppe && bewertbar ? String(Math.round(preisStk * 1e6)) : 'einzeln:' + e.produkt_id;
     if (!g.zeilen.has(zKey)) g.zeilen.set(zKey, { preisStk, produkte: [] });
     g.zeilen.get(zKey).produkte.push({
-      produkt_id: e.produkt_id, name: z.produktname, barcode: z.barcode,
+      produkt_id: e.produkt_id, pos: pos(e.produkt_id), name: z.produktname, barcode: z.barcode,
       preisGebindeCent: bewertbar ? invCent(preisGebinde) : null, stueck: bewertbar ? Number(z.stueck_gebinde) : null,
       geschaeft: e.geschaeft || 0, lager: e.lager || 0, gesamt: e.gesamt
     });
@@ -2812,11 +2821,10 @@ function invAuswertung() {
   const einheitlich = (liste, feld) => liste.every(x => x[feld] === liste[0][feld]) ? liste[0][feld] : null;
   firmen.forEach(f => {
     f.gruppen = [...f.gruppen.values()]
-      .sort((a, b) => (!a.name) - (!b.name) || a.name.localeCompare(b.name, 'de'))   // „ohne Gruppe“ zuletzt
       .map(g => ({
         name: g.name,
         zeilen: [...g.zeilen.values()].map(r => {
-          const pr = r.produkte.sort((a, b) => a.name.localeCompare(b.name, 'de'));
+          const pr = r.produkte.sort((a, b) => a.pos - b.pos);
           const ohnePreis = r.preisStk === null;
           const endStk = ohnePreis ? 0 : INV_ABZUEGE.reduce((w, a) => w * (1 - a), r.preisStk);
           const gesamt = pr.reduce((s, x) => s + x.gesamt, 0);
@@ -2828,10 +2836,13 @@ function invAuswertung() {
             preisGebindeCent: einheitlich(pr, 'preisGebindeCent'), stueck: einheitlich(pr, 'stueck'),
             preisStkCent: ohnePreis ? null : invCent(r.preisStk), endStkCent: ohnePreis ? null : invCent(endStk),
             geschaeft: pr.reduce((s, x) => s + x.geschaeft, 0), lager: pr.reduce((s, x) => s + x.lager, 0), gesamt,
-            wertCent: invCent(endStk * gesamt)          // genau gerechnet, erst hier auf Cent gerundet
+            wertCent: invCent(endStk * gesamt),         // genau gerechnet, erst hier auf Cent gerundet
+            pos: pr[0].pos
           };
-        }).sort((a, b) => a.bezeichnung.localeCompare(b.bezeichnung, 'de') || b.preisStkCent - a.preisStkCent)
-      }));
+        }).sort((a, b) => a.pos - b.pos)
+      }))
+      .map(g => ({ ...g, pos: Math.min(...g.zeilen.map(r => r.pos)) }))
+      .sort((a, b) => a.pos - b.pos);                // Gruppen in der Reihenfolge der Inventurliste
     f.summeCent = f.gruppen.reduce((s, g) => s + g.zeilen.reduce((t, r) => t + r.wertCent, 0), 0);
   });
   return { firmen, gesamtCent: firmen.reduce((s, f) => s + f.summeCent, 0), ohneMenge };
@@ -2906,8 +2917,9 @@ function invHinzufuegenKnopf() {
 }
 
 function invMengenHTML() {
+  const pos = invPositionen();
   const liste = invProdukteZusammen().sort((a, b) =>
-    (INV_FIRMEN.indexOf(a.z.produktfirma) - INV_FIRMEN.indexOf(b.z.produktfirma)) || a.z.produktname.localeCompare(b.z.produktname, 'de'));
+    (INV_FIRMEN.indexOf(a.z.produktfirma) - INV_FIRMEN.indexOf(b.z.produktfirma)) || pos(a.produkt_id) - pos(b.produkt_id));
   if (!liste.length) return invHinzufuegenKnopf() + `<div class="inv-card"><div class="inv-card-body inv-klein">Noch nichts erfasst. Ort wählen und ersten Barcode scannen.</div></div>`;
   const zahl = v => (v === null ? '–' : v);
   return invHinzufuegenKnopf() + `<div class="inv-card">
@@ -3269,7 +3281,11 @@ async function invEditorSpeichern() {
     const maxSort = db.products.reduce((m, x) => Math.max(m, x.sortOrder || 0), 0);
     p = { id: genId(), name, unit: 'Stk.', note: '', zones: ['geschaeft', 'keller'], stock: { geschaeft: 0, keller: 0 },
       reorder_point: 0, soll_bestand: {}, subcatId: null, sortOrder: maxSort + 10, created_at: new Date().toISOString() };
-    db.products.push(p);
+    // hinter den letzten Posten derselben Firma (und Gruppe) einordnen, sonst ans Ende
+    let nach = -1;
+    db.products.forEach((x, i) => { if (x.firma === firma && invGruppeKey(x.produktgruppe) === invGruppeKey(produktgruppe)) nach = i; });
+    if (nach < 0) db.products.forEach((x, i) => { if (x.firma === firma) nach = i; });
+    if (nach < 0) db.products.push(p); else db.products.splice(nach + 1, 0, p);
   }
   if (p) { Object.assign(p, daten); saveData(db); render(); }
   const produktId = p ? p.id : invEdId;
@@ -3367,18 +3383,20 @@ function invProdukteListeRender() {
     const f = produkte.filter(p => p.firma === firma);
     if (!f.length) return;
     h += `<div class="inv-label" style="margin-top:10px">${esc(firma)} (${f.length})</div>`;
-    const gruppen = new Map();
-    f.forEach(p => { const g = invGruppeText(p.produktgruppe); if (!gruppen.has(invGruppeKey(g))) gruppen.set(invGruppeKey(g), { name: g, liste: [] }); gruppen.get(invGruppeKey(g)).liste.push(p); });
-    [...gruppen.values()].sort((a, b) => (!a.name) - (!b.name) || a.name.localeCompare(b.name, 'de')).forEach(g => {
-      if (g.name) h += `<div class="inv-klein" style="font-weight:700;margin:6px 0 2px">${esc(g.name)}</div>`;
-      g.liste.sort((a, b) => a.name.localeCompare(b.name, 'de')).forEach(p => {
+    let letzteGruppe = null;
+    f.forEach(p => {   // Reihenfolge wie in der Inventurliste
+        const g = invGruppeText(p.produktgruppe);
+        if (invGruppeKey(g) !== letzteGruppe) {
+          if (g) h += `<div class="inv-klein" style="font-weight:700;margin:8px 0 2px">${esc(g)}</div>`;
+          else if (letzteGruppe !== null) h += `<div style="height:8px"></div>`;
+          letzteGruppe = invGruppeKey(g);
+        }
         const m = invAktuell ? menge(p.id) : null;
         h += `<div class="inv-treffer" onclick="invEditorOeffnen('${esc(p.id)}')">
           <div style="display:flex;justify-content:space-between;gap:8px"><span style="font-weight:600">${esc(p.name)}</span>${m !== null ? `<span class="inv-klein">${m} Stk.</span>` : ''}</div>
           <div class="inv-klein">${invBewertbar(p.preis_gebinde, p.stueck_gebinde)
             ? `${invEuro(invCent(p.preis_gebinde))} / Gebinde · ${p.stueck_gebinde} Stk.` : '<span style="color:#C0392B">Preis fehlt</span>'}${p.barcode ? ' · Barcode ' + esc(p.barcode) : ''}</div>
         </div>`;
-      });
     });
   });
   el.innerHTML = h;
