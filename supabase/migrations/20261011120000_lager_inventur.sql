@@ -64,16 +64,28 @@ CREATE TABLE IF NOT EXISTS lager_inventur_zaehlungen (
   produkt_id          text NOT NULL,
   ort                 text NOT NULL CHECK (ort IN ('geschaeft', 'lager')),
   menge               integer NOT NULL CHECK (menge >= 0),
-  barcode             text NOT NULL,
+  barcode             text,
   produktname         text NOT NULL,
-  produktfirma        text NOT NULL CHECK (produktfirma IN ('Loreal', 'Nashi Argan', 'Goldwell', 'Wella')),
-  bruttopreis_gebinde numeric(12,2) NOT NULL CHECK (bruttopreis_gebinde >= 0),
-  stueck_gebinde      integer NOT NULL CHECK (stueck_gebinde > 0),
+  produktfirma        text NOT NULL,
+  bruttopreis_gebinde numeric(12,2) CHECK (bruttopreis_gebinde >= 0),
+  stueck_gebinde      integer CHECK (stueck_gebinde > 0),
   erfasst_am          timestamptz NOT NULL DEFAULT now(),
   erfasst_von         uuid,
   PRIMARY KEY (inventur_id, produkt_id, ort)
 );
 ALTER TABLE lager_inventur_zaehlungen ENABLE ROW LEVEL SECURITY;
+
+-- Erlaubte Produktfirmen; Barcode und Preis dürfen fehlen (Inventurposten ohne
+-- Barcode, Preis wird bis zum Abschluss ergänzt – die App prüft das beim Abschluss)
+ALTER TABLE lager_inventur_zaehlungen
+  DROP CONSTRAINT IF EXISTS lager_inventur_zaehlungen_produktfirma_check;
+ALTER TABLE lager_inventur_zaehlungen
+  ADD CONSTRAINT lager_inventur_zaehlungen_produktfirma_check
+  CHECK (produktfirma IN ('Loreal', 'Nashi Argan', 'Goldwell', 'Wella', 'American Crew'));
+ALTER TABLE lager_inventur_zaehlungen
+  ALTER COLUMN barcode             DROP NOT NULL,
+  ALTER COLUMN bruttopreis_gebinde DROP NOT NULL,
+  ALTER COLUMN stueck_gebinde      DROP NOT NULL;
 
 -- Produktgruppe Inventur (optional): Grundlage für Sammelzeilen in Auswertung/CSV
 ALTER TABLE lager_inventur_zaehlungen
