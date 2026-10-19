@@ -1265,7 +1265,7 @@ async function syncBestellungOS() {
   } catch(e) { console.warn('Bestell-OS-Sync:', e.message); }
 }
 
-let syncStatus = 'lokal'; // 'lokal' | 'syncing' | 'synced' | 'error'
+let syncStatus = 'lokal'; // 'lokal' | 'syncing' | 'synced' | 'wartet' | 'error'
 
 function setSyncStatus(s) {
   syncStatus = s;
@@ -1275,6 +1275,7 @@ function setSyncStatus(s) {
     lokal:   { text: '💾 Lokal',        color: '#aaa' },
     syncing: { text: '🔄 Synchronisiert…', color: 'var(--gold)' },
     synced:  { text: '☁️ Synchronisiert',  color: 'var(--mint)' },
+    wartet:  { text: '📴 Wartet auf Netz', color: 'var(--gold)' },
     error:   { text: '⚠️ Sync-Fehler',    color: 'var(--rose)' },
   };
   const m = map[s] || map.lokal;
@@ -1282,51 +1283,157 @@ function setSyncStatus(s) {
   el.style.color = m.color;
 }
 
-async function syncToSupabase(data) {
+// ── Cloud-Abgleich mit Überschreib-Schutz ──
+// Alle Lagerdaten liegen als ein Datensatz in lager_data. Damit ein Gerät mit
+// veraltetem Stand (alter Tab, Handy länger offline) nichts mehr überschreibt,
+// wird nur gespeichert, wenn der Cloud-Stand (updated_at) noch derselbe ist wie
+// beim letzten Laden. Sonst wird zuerst der neue Stand geholt und mit den
+// eigenen Änderungen zusammengeführt (eigene Änderungen gewinnen, Änderungen
+// anderer Geräte an anderen Produkten bleiben erhalten).
+const SYNC_KEY = STORAGE_KEY + '_sync';   // { stand, basis, ausstehend } – nur auf diesem Gerät
+function syncZustandLaden() {
+  try { return JSON.parse(localStorage.getItem(SYNC_KEY)) || {}; } catch { return {}; }
+}
+let syncZustand = syncZustandLaden();     // stand = updated_at in der Cloud, basis = Daten zu diesem Stand (JSON)
+function syncZustandSpeichern() {
+  try { localStorage.setItem(SYNC_KEY, JSON.stringify(syncZustand)); } catch (e) { console.warn('Sync-Zustand nicht gespeichert:', e); }
+}
+
+// Drei-Wege-Abgleich: basis = gemeinsamer Ausgangsstand, lokal = dieses Gerät, cloud = neuester Stand
+function syncGleich(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+function syncObjekt(b, l, c) {
+  const r = {};
+  new Set([...Object.keys(l || {}), ...Object.keys(c || {})]).forEach(k => {
+    const wert = syncGleich((l || {})[k], (b || {})[k]) ? (c || {})[k] : (l || {})[k];
+    if (wert !== undefined) r[k] = wert;
+  });
+  return r;
+}
+function syncListe(b, l, c) {
+  const nachId = arr => new Map((arr || []).filter(x => x && x.id !== undefined).map(x => [x.id, x]));
+  const B = nachId(b), L = nachId(l), C = nachId(c);
+  const ergebnis = [];
+  // Reihenfolge dieses Geräts beibehalten
+  (l || []).forEach(x => {
+    if (!x || x.id === undefined) return;
+    const bx = B.get(x.id), cx = C.get(x.id);
+    if (cx) ergebnis.push(bx ? syncObjekt(bx, x, cx) : x);
+    else if (!bx || !syncGleich(x, bx)) ergebnis.push(x);   // neu hier, oder anderswo gelöscht aber hier geändert
+    // sonst: auf anderem Gerät gelöscht, hier unverändert → weg
+  });
+  // Auf anderen Geräten neu angelegt (oder hier gelöscht, dort aber geändert): hinter den Vorgänger einordnen
+  (c || []).forEach((x, i) => {
+    if (!x || x.id === undefined || L.has(x.id)) return;
+    const bx = B.get(x.id);
+    if (bx && syncGleich(x, bx)) return;                    // hier gelöscht, dort unverändert → weg
+    const vorgaenger = i > 0 ? c[i - 1]?.id : undefined;
+    const pos = ergebnis.findIndex(e => e.id === vorgaenger);
+    if (pos >= 0) ergebnis.splice(pos + 1, 0, x); else ergebnis.push(x);
+  });
+  return ergebnis;
+}
+function syncZusammenfuehren(b, l, c) {
+  const r = {};
+  new Set([...Object.keys(l || {}), ...Object.keys(c || {})]).forEach(k => {
+    if ((k === 'products' || k === 'categories') && Array.isArray((c || {})[k])) r[k] = syncListe((b || {})[k], (l || {})[k], c[k]);
+    else {
+      const wert = syncGleich((l || {})[k], (b || {})[k]) ? (c || {})[k] : (l || {})[k];
+      if (wert !== undefined) r[k] = wert;
+    }
+  });
+  return r;
+}
+
+async function syncHeaders() {
+  const { data: sessionData } = await AUTH_CLIENT.auth.getSession();
+  if (!sessionData?.session) return null;
+  return { 'apikey': BL_KEY, 'Authorization': `Bearer ${sessionData.session.access_token}` };
+}
+// Liefert { data, updated_at } | null (kein Datensatz) | 'offline'
+async function loadFromSupabase(headers) {
+  let res;
+  try {
+    res = await fetch(`${BL_URL}/rest/v1/${SUPA_TABLE}?id=eq.singleton&select=data,updated_at`, { headers, cache: 'no-store' });
+  } catch (e) { return 'offline'; }
+  if (res.headers.get('x-ghd-offline')) return 'offline';   // gemerkter Stand vom Offline-Baustein, nicht der aktuelle
+  if (!res.ok) throw new Error('Laden: HTTP ' + res.status);
+  const rows = await res.json();
+  return rows && rows[0] ? rows[0] : null;
+}
+
+let syncLaeuft = null, syncNochmal = false;
+function syncToSupabase() {
+  if (syncLaeuft) { syncNochmal = true; return syncLaeuft; }
+  syncLaeuft = (async () => {
+    try {
+      do { syncNochmal = false; await syncLauf(); } while (syncNochmal);
+    } finally { syncLaeuft = null; }
+  })();
+  return syncLaeuft;
+}
+
+async function syncLauf() {
   setSyncStatus('syncing');
   try {
-    const { data: sessionData } = await AUTH_CLIENT.auth.getSession();
-    if (!sessionData?.session) { setSyncStatus('error'); return; }   // ohne Login nicht schreiben
-    const res = await fetch(`${BL_URL}/rest/v1/${SUPA_TABLE}?id=eq.singleton`, {
-      method: 'PATCH',
-      headers: {
-        'apikey': BL_KEY,
-        'Authorization': `Bearer ${sessionData.session.access_token}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify({ data, updated_at: new Date().toISOString() })
-    });
-    if (!res.ok) throw new Error(res.status);
-    setSyncStatus('synced');
+    const headers = await syncHeaders();
+    if (!headers) { setSyncStatus('error'); return; }   // ohne Login nicht schreiben
+    for (let versuch = 0; versuch < 4; versuch++) {
+      const cloud = await loadFromSupabase(headers);
+      if (cloud === 'offline') { syncZustand.ausstehend = true; syncZustandSpeichern(); setSyncStatus('wartet'); return; }
+      if (!cloud) { setSyncStatus('error'); console.warn('lager_data: Datensatz fehlt'); return; }
+      const cloudHatDaten = !!(cloud.data && Array.isArray(cloud.data.products) && cloud.data.products.length);
+      if (cloud.updated_at !== syncZustand.stand) {
+        // In der Cloud liegt ein anderer Stand als zuletzt hier geladen
+        if (cloudHatDaten) {
+          const lokalGeaendert = !!syncZustand.basis && JSON.stringify(db) !== syncZustand.basis;
+          // Ohne eigene Änderungen, oder wenn dieses Gerät noch keinen Cloud-Stand kennt: Cloud übernehmen
+          db = lokalGeaendert ? syncZusammenfuehren(JSON.parse(syncZustand.basis), db, cloud.data) : cloud.data;
+          if (!db.categories) db.categories = DEFAULT_CATS;
+          ensureSortOrder(db, false);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+          render();
+          if (lokalGeaendert) toast('Neuerer Stand eines anderen Geräts geladen und mit deinen Änderungen zusammengeführt');
+        }
+        syncZustand.stand = cloud.updated_at;
+        syncZustand.basis = JSON.stringify(cloud.data);
+        syncZustandSpeichern();
+      }
+      const gesendet = JSON.stringify(db);
+      if (gesendet === syncZustand.basis) { syncZustand.ausstehend = false; syncZustandSpeichern(); setSyncStatus('synced'); return; }
+      if (!JSON.parse(gesendet).products?.length && cloudHatDaten) { setSyncStatus('error'); console.warn('Leere Produktliste wird nicht hochgeladen'); return; }
+      // Nur speichern, wenn die Cloud noch auf genau diesem Stand ist
+      const neuerStand = new Date().toISOString();
+      let res;
+      try {
+        res = await fetch(`${BL_URL}/rest/v1/${SUPA_TABLE}?id=eq.singleton&updated_at=eq.${encodeURIComponent(syncZustand.stand)}&select=updated_at`, {
+          method: 'PATCH',
+          headers: { ...headers, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+          body: `{"data":${gesendet},"updated_at":"${neuerStand}"}`
+        });
+      } catch (e) { syncZustand.ausstehend = true; syncZustandSpeichern(); setSyncStatus('wartet'); return; }
+      if (res.headers.get('x-ghd-offline')) {
+        // Offline-Baustein hat die Änderung vorgemerkt; er schickt sie nur nach, wenn sich der Datensatz
+        // inzwischen nicht verändert hat. Danach gleicht diese App beim nächsten Laden erneut ab.
+        syncZustand.ausstehend = true; syncZustandSpeichern(); setSyncStatus('wartet'); return;
+      }
+      if (!res.ok) throw new Error('Speichern: HTTP ' + res.status);
+      const rows = await res.json();
+      if (rows && rows.length === 1) {
+        syncZustand.stand = rows[0].updated_at;
+        syncZustand.basis = gesendet;
+        syncZustand.ausstehend = false;
+        syncZustandSpeichern();
+        setSyncStatus('synced');
+        return;
+      }
+      // 0 Zeilen: ein anderes Gerät hat inzwischen gespeichert → neu laden, zusammenführen, nochmal
+    }
+    setSyncStatus('error');
   } catch(e) {
+    syncZustand.ausstehend = true; syncZustandSpeichern();
     setSyncStatus('error');
     console.warn('Supabase sync error:', e);
   }
-}
-
-async function loadFromSupabase() {
-  setSyncStatus('syncing');
-  try {
-    const { data: sessionData } = await AUTH_CLIENT.auth.getSession();
-    if (!sessionData?.session) { setSyncStatus('error'); return null; }
-    const res = await fetch(`${BL_URL}/rest/v1/${SUPA_TABLE}?id=eq.singleton&select=data,updated_at`, {
-      headers: {
-        'apikey': BL_KEY,
-        'Authorization': `Bearer ${sessionData.session.access_token}`
-      }
-    });
-    if (!res.ok) throw new Error(res.status);
-    const rows = await res.json();
-    if (rows && rows[0] && rows[0].data && rows[0].data.products) {
-      setSyncStatus('synced');
-      return rows[0].data;
-    }
-  } catch(e) {
-    setSyncStatus('error');
-    console.warn('Supabase load error:', e);
-  }
-  return null;
 }
 
 const DEFAULT_CATS = [
@@ -1351,7 +1458,7 @@ function loadData() {
 
 function saveData(data) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  syncToSupabase(data);
+  syncToSupabase();
 }
 
 let db = loadData();
@@ -1435,23 +1542,17 @@ async function syncLagerOS(products) {
   } catch(e) { console.warn("OS-Sync Lager fehlgeschlagen:", e.message); }
 }
 
-// Beim Start: Daten aus der Cloud laden — läuft erst nach erfolgtem Login, siehe starteApp()
+// Beim Start: Daten aus der Cloud laden — läuft erst nach erfolgtem Login, siehe starteApp().
+// Neuer Cloud-Stand wird übernommen, noch nicht hochgeladene eigene Änderungen werden zusammengeführt.
 async function ladeCloudDaten() {
-  const cloud = await loadFromSupabase();
-  if (cloud && cloud.products && cloud.products.length > 0) {
-    // Cloud hat Daten — nehmen wir sie
-    db = cloud;
-    if (!db.categories) db.categories = DEFAULT_CATS;
-    ensureSortOrder(db, true);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
-    render();
-    syncLagerOS(db.products);
-  } else if (db.products && db.products.length > 0) {
-    // Lokale Daten vorhanden — in die Cloud hochladen
-    syncToSupabase(db);
-    syncLagerOS(db.products);
-  }
+  await syncToSupabase();
+  if (db.products && db.products.length > 0) syncLagerOS(db.products);
 }
+// Zurück in die App / wieder Netz: auf neueren Stand anderer Geräte prüfen
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && appGestartet) syncToSupabase();
+});
+window.addEventListener('online', () => { if (appGestartet) syncToSupabase(); });
 
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2,6);
@@ -2414,7 +2515,9 @@ function moveProduct(id, zone, direction) {
   render();
 }
 
+let appGestartet = false;
 function starteApp() {
+  appGestartet = true;
   render();
   ladeCloudDaten();
 }
