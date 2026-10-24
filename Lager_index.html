@@ -381,7 +381,7 @@
   <div class="header-actions">
     <span id="syncStatus" style="font-size:11px;color:#aaa;align-self:center">💾 Lokal</span>
     <button class="btn btn-ghost btn-sm" onclick="abmelden()" title="Abmelden">🚪 Abmelden</button>
-    <button class="btn btn-ghost btn-sm" onclick="exportData()">⬇ Export JSON</button>
+    <button class="btn btn-ghost btn-sm" id="backupBtn" onclick="allesSichern()" title="Produkte, Kategorien und Inventuren als ZIP-Datei auf dieses Gerät laden">💾 Alles sichern</button>
     <label class="btn btn-ghost btn-sm" style="cursor:pointer">
       ⬆ Import JSON
       <input type="file" accept=".json" style="display:none" onchange="importData(event)">
@@ -1962,13 +1962,129 @@ function confirmRenameCategory() {
 // ═══════════════════════════════════════
 //  IMPORT / EXPORT JSON
 // ═══════════════════════════════════════
-function exportData() {
-  const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url; a.download=`lager-backup-${new Date().toISOString().slice(0,10)}.json`;
-  a.click(); URL.revokeObjectURL(url);
-  toast('Export abgeschlossen ✓','success');
+// ── Alles sichern (ZIP) ──
+// Das Supabase-Projekt hat im Gratis-Tarif keine Backups. Dieser Knopf lädt eine
+// ZIP-Datei mit Lager-Sicherung.xlsx (Produkte, Kategorien, Inventuren) und
+// lager-daten.json – die JSON lässt sich über „⬆ Import JSON“ wieder einspielen.
+const BACKUP_KEY = STORAGE_KEY + '_letzte_sicherung';
+
+function ladeJSZip() {
+  if (window.JSZip) return Promise.resolve(window.JSZip);
+  return new Promise((ok, nein) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+    s.onload = () => window.JSZip ? ok(window.JSZip) : nein(new Error('JSZip fehlt'));
+    s.onerror = () => nein(new Error('JSZip konnte nicht geladen werden'));
+    document.head.appendChild(s);
+  });
+}
+
+function sicherungZone(z) { return { geschaeft: 'Geschäft', keller: 'Keller', lager: 'Lager' }[z] || z; }
+
+// Produkte als Tabellenzeilen: bekannte Felder zuerst, alle übrigen Felder automatisch dahinter
+function sicherungProduktZeilen(daten) {
+  const katName = Object.fromEntries((daten.categories || []).map(c => [c.id, c.name]));
+  const zonen = [...new Set((daten.products || []).flatMap(p => [...(p.zones || []), ...Object.keys(p.stock || {}), ...Object.keys(p.soll_bestand || {})]))];
+  const bekannt = new Set(['id', 'name', 'unit', 'subcatId', 'zones', 'stock', 'soll_bestand', 'reorder_point', 'barcode', 'note', 'sortOrder', 'created_at']);
+  return (daten.products || []).map(p => {
+    const z = { 'Name': p.name || '', 'Kategorie': katName[p.subcatId] || '', 'Einheit': p.unit || '' };
+    zonen.forEach(o => { z['Bestand ' + sicherungZone(o)] = p.stock?.[o] ?? ''; });
+    zonen.forEach(o => { z['Soll ' + sicherungZone(o)] = p.soll_bestand?.[o] ?? ''; });
+    z['Meldebestand'] = p.reorder_point ?? '';
+    z['Barcode'] = p.barcode || '';
+    z['Notiz'] = p.note || '';
+    Object.keys(p).filter(k => !bekannt.has(k)).forEach(k => {
+      const v = p[k];
+      z[k] = v === null || v === undefined ? '' : (typeof v === 'object' ? JSON.stringify(v) : v);
+    });
+    z['Angelegt'] = (p.created_at || '').slice(0, 10);
+    z['ID'] = p.id;
+    return z;
+  });
+}
+
+let sicherungLaeuft = false;
+async function allesSichern() {
+  if (sicherungLaeuft) return;
+  const btn = document.getElementById('backupBtn');
+  const btnText = btn.textContent;
+  sicherungLaeuft = true;
+  btn.disabled = true;
+  try {
+    // Zuerst mit der Cloud abgleichen, damit der neueste Stand gesichert wird
+    btn.textContent = '💾 Gleiche ab…';
+    await syncToSupabase();
+    const aktuell = syncStatus === 'synced';
+    const daten = JSON.parse(JSON.stringify(db));
+
+    btn.textContent = '💾 Inventuren…';
+    let inventuren = [], zaehlungen = [], inventurHinweis = '';
+    try {
+      inventuren = (await invApi('lager_inventuren?select=*&order=stichtag.desc')) || [];
+      if (inventuren.length) zaehlungen = (await invApi('lager_inventur_zaehlungen?select=*&order=produktfirma.asc,produktname.asc')) || [];
+    } catch (e) { inventurHinweis = 'Inventuren konnten nicht geladen werden: ' + (e.message || e); }
+
+    const JSZip = await ladeJSZip();
+    btn.textContent = '💾 Packe ZIP…';
+    const wb = XLSX.utils.book_new();
+    const blatt = (zeilen, name) => XLSX.utils.book_append_sheet(wb, zeilen.length ? XLSX.utils.json_to_sheet(zeilen) : XLSX.utils.aoa_to_sheet([['(leer)']]), name.slice(0, 31));
+    blatt(sicherungProduktZeilen(daten), 'Produkte');
+    blatt((daten.categories || []).map(c => ({ 'Kategorie': c.name, 'Bereiche': (c.zones || []).map(sicherungZone).join(', '), 'ID': c.id })), 'Kategorien');
+    const benutzt = new Set(['Produkte', 'Kategorien']);
+    inventuren.forEach(inv => {
+      let name = `Inventur ${inv.stichtag}`, n = 2;
+      while (benutzt.has(name)) name = `Inventur ${inv.stichtag} (${n++})`;
+      benutzt.add(name);
+      blatt(zaehlungen.filter(z => z.inventur_id === inv.id).map(z => ({
+        'Produktfirma': z.produktfirma, 'Produkt': z.produktname, 'Barcode': z.barcode || '', 'Ort': sicherungZone(z.ort), 'Menge': z.menge,
+        'Bruttopreis Gebinde (EUR)': z.bruttopreis_gebinde ?? '', 'Stück pro Gebinde': z.stueck_gebinde ?? '',
+        'Erfasst am': (z.erfasst_am || '').slice(0, 16).replace('T', ' '), 'Status Inventur': inv.status
+      })), name);
+    });
+
+    const heute = new Date().toISOString().slice(0, 10);
+    const zip = new JSZip();
+    zip.file('Lager-Sicherung.xlsx', XLSX.write(wb, { bookType: 'xlsx', type: 'array' }));
+    zip.file('lager-daten.json', JSON.stringify(daten, null, 2));
+    if (inventuren.length) zip.file('inventuren.json', JSON.stringify({ inventuren, zaehlungen }, null, 2));
+    const hinweise = [];
+    if (!aktuell) hinweise.push('Achtung: Beim Sichern war kein Abgleich mit der Cloud möglich. Gesichert wurde der Stand auf diesem Gerät.');
+    if (inventurHinweis) hinweise.push(inventurHinweis);
+    hinweise.push('Wiederherstellen: In der Lager-App „⬆ Import JSON“ tippen und lager-daten.json auswählen. Das ersetzt den ganzen Lagerstand durch diese Sicherung.');
+    zip.file('LIES MICH.txt', hinweise.join('\r\n\r\n'));
+
+    const inhalt = await zip.generateAsync({ type: 'blob' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(inhalt);
+    a.download = `Lager-Sicherung-${heute}.zip`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+    try { localStorage.setItem(BACKUP_KEY, heute); } catch (e) {}
+    sicherungErinnern(false);
+    toast(aktuell && !inventurHinweis
+      ? `Gesichert: ${daten.products.length} Produkte, ${inventuren.length} Inventur(en) ✓`
+      : 'Gesichert – aber nicht ganz vollständig, siehe „LIES MICH.txt“ im ZIP.', aktuell && !inventurHinweis ? 'success' : 'error');
+  } catch (e) {
+    console.error(e);
+    toast('Sichern hat nicht geklappt: ' + (e.message || e), 'error');
+  } finally {
+    sicherungLaeuft = false;
+    btn.disabled = false;
+    btn.textContent = btnText;
+  }
+}
+
+// Erinnerung, wenn die letzte Sicherung länger als 30 Tage her ist
+function sicherungErinnern(mitHinweis = true) {
+  let letzte = null;
+  try { letzte = localStorage.getItem(BACKUP_KEY); } catch (e) {}
+  const tage = letzte ? (Date.now() - new Date(letzte).getTime()) / 86400000 : Infinity;
+  const btn = document.getElementById('backupBtn');
+  if (btn) btn.title = letzte ? `Zuletzt gesichert: ${letzte.split('-').reverse().join('.')}` : 'Noch nie gesichert';
+  if (mitHinweis && tage > 30 && db.products?.length) {
+    toast(letzte ? `Letzte Sicherung ist ${Math.floor(tage)} Tage her – bitte „💾 Alles sichern“ tippen.`
+                 : 'Tipp: Mit „💾 Alles sichern“ das ganze Lager als ZIP aufs Gerät laden.', 'info');
+  }
 }
 
 function importData(event) {
@@ -2520,6 +2636,7 @@ function starteApp() {
   appGestartet = true;
   render();
   ladeCloudDaten();
+  setTimeout(sicherungErinnern, 4000);
 }
 
 // Bereits eingeloggt: Supabase-Session prüfen, bevor die App startet
